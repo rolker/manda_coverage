@@ -8,7 +8,7 @@
 #include <iterator>
 #include <regex>
 #include "MBUtils.h"
-#include "ACTable.h"
+//#include "ACTable.h"
 #include "AngleUtils.h"
 #include "XYFormatUtilsSegl.h"
 #include "RecordSwath.h"
@@ -17,6 +17,8 @@
 #include <boost/algorithm/string.hpp>
 
 #define DEBUG true
+
+typedef std::list<std::string > STRING_LIST;
 
 //---------------------------------------------------------
 // Constructor
@@ -39,17 +41,17 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
 
 bool SurveyPath::OnStartUp()
 {
-  AppCastingMOOSApp::OnStartUp();
+  //AppCastingMOOSApp::OnStartUp();
 
   STRING_LIST sParams;
-  m_MissionReader.EnableVerbatimQuoting(false);
-  if(!m_MissionReader.GetConfiguration(GetAppName(), sParams))
-    reportConfigWarning("No config block found for " + GetAppName());
+//   m_MissionReader.EnableVerbatimQuoting(false);
+//   if(!m_MissionReader.GetConfiguration(GetAppName(), sParams))
+//     reportConfigWarning("No config block found for " + GetAppName());
 
   STRING_LIST::iterator p;
   for(p=sParams.begin(); p!=sParams.end(); p++) {
     std::string orig  = *p;
-    MOOSTrace("pSurveyPath Parameter: " + orig + "\n");
+    //MOOSTrace("pSurveyPath Parameter: " + orig + "\n");
     std::string line  = *p;
     std::string param = toupper(biteStringX(line, '='));
     std::string value = line;
@@ -59,7 +61,7 @@ bool SurveyPath::OnStartUp()
     if(param == "OP_REGION") {
       std::regex pattern("_");
       std::string spaces_added = std::regex_replace(line, pattern, " ");
-      MOOSTrace("pSurveyPath After Spaces: " + spaces_added + "\n");
+      //MOOSTrace("pSurveyPath After Spaces: " + spaces_added + "\n");
       boost::geometry::read_wkt(spaces_added, m_op_region);
       boost::geometry::correct(m_op_region);
       handled = true;
@@ -77,7 +79,7 @@ bool SurveyPath::OnStartUp()
     else if (param == "FIRST_LINE") {
       if (toupper(value).compare("AUTO") != 0) {
         m_survey_path = string2SegList(value);
-        MOOSTrace("First Line Set: " + m_survey_path.get_spec_pts(2) + "\n");
+        //MOOSTrace("First Line Set: " + m_survey_path.get_spec_pts(2) + "\n");
       }
       handled = true;
     }
@@ -104,25 +106,25 @@ bool SurveyPath::OnStartUp()
     }
 
     if(!handled && param != "TERM_REPORTING")
-      reportUnhandledConfigWarning(orig);
+    {}//reportUnhandledConfigWarning(orig);
   }
 
   // Reception variables
-  AddMOOSVariable("Swath", "SWATH_WIDTH", "", 0);
-  AddMOOSVariable("LineBegin", "LINE_BEGIN", "", 0);
-  AddMOOSVariable("LineEnd", "LINE_END", "", 0);
-  AddMOOSVariable("TurnReached", "TURN_REACHED", "", 0);
-  AddMOOSVariable("AlignmentLineStart", "ALIGN_LINE", "", 0);
-  AddMOOSVariable("Heading", "NAV_HEADING", "", 0);
-  AddMOOSVariable("DesiredHeading", "DESIRED_HEADING", "", 0);
+//   AddMOOSVariable("Swath", "SWATH_WIDTH", "", 0);
+//   AddMOOSVariable("LineBegin", "LINE_BEGIN", "", 0);
+//   AddMOOSVariable("LineEnd", "LINE_END", "", 0);
+//   AddMOOSVariable("TurnReached", "TURN_REACHED", "", 0);
+//   AddMOOSVariable("AlignmentLineStart", "ALIGN_LINE", "", 0);
+//   AddMOOSVariable("Heading", "NAV_HEADING", "", 0);
+//   AddMOOSVariable("DesiredHeading", "DESIRED_HEADING", "", 0);
 
   // Publish variables
-  AddMOOSVariable("TurnPoint", "", "TURN_UPDATE", 0);
-  AddMOOSVariable("Stop", "", "FAULT", 0);
-  AddMOOSVariable("SurveyPath", "", "SURVEY_UPDATE", 0);
-  AddMOOSVariable("StartPath", "", "START_UPDATE", 0);
-  AddMOOSVariable("ToStartPath", "", "TO_START_UPDATE", 0);
-  AddMOOSVariable("NextSwathSide", "", "NEXT_SWATH_SIDE", 0);
+//   AddMOOSVariable("TurnPoint", "", "TURN_UPDATE", 0);
+//   AddMOOSVariable("Stop", "", "FAULT", 0);
+//   AddMOOSVariable("SurveyPath", "", "SURVEY_UPDATE", 0);
+//   AddMOOSVariable("StartPath", "", "START_UPDATE", 0);
+//   AddMOOSVariable("ToStartPath", "", "TO_START_UPDATE", 0);
+//   AddMOOSVariable("NextSwathSide", "", "NEXT_SWATH_SIDE", 0);
 
   //On Connect to Surver called before this
   registerVariables();
@@ -136,7 +138,7 @@ bool SurveyPath::OnStartUp()
 
 bool SurveyPath::OnConnectToServer()
 {
-  bool published = PublishFreshMOOSVariables();
+  bool published = true;//PublishFreshMOOSVariables();
   return(published);
 }
 
@@ -145,18 +147,18 @@ bool SurveyPath::OnConnectToServer()
 
 void SurveyPath::registerVariables()
 {
-  AppCastingMOOSApp::RegisterVariables();
-  RegisterMOOSVariables();
+  //AppCastingMOOSApp::RegisterVariables();
+  //RegisterMOOSVariables();
 }
 
 //---------------------------------------------------------
 // Procedure: OnNewMail
 
-bool SurveyPath::OnNewMail(MOOSMSG_LIST &NewMail)
-{
-  AppCastingMOOSApp::OnNewMail(NewMail);
-
-  UpdateMOOSVariables(NewMail);
+// bool SurveyPath::OnNewMail(MOOSMSG_LIST &NewMail)
+// {
+//   AppCastingMOOSApp::OnNewMail(NewMail);
+// 
+//   UpdateMOOSVariables(NewMail);
 
 //   MOOSMSG_LIST::iterator p;
 //   for(p=NewMail.begin(); p!=NewMail.end(); p++) {
@@ -182,8 +184,8 @@ bool SurveyPath::OnNewMail(MOOSMSG_LIST &NewMail)
 
 
 
-  return(true);
-}
+//   return(true);
+// }
 
 //---------------------------------------------------------
 // Procedure: Iterate()
@@ -191,100 +193,100 @@ bool SurveyPath::OnNewMail(MOOSMSG_LIST &NewMail)
 
 bool SurveyPath::Iterate()
 {
-  AppCastingMOOSApp::Iterate();
+//  AppCastingMOOSApp::Iterate();
 
   // Process received data
-  auto align_msg = GetMOOSVar("AlignmentLineStart");
-  auto begin_msg = GetMOOSVar("LineBegin");
+//   auto align_msg = GetMOOSVar("AlignmentLineStart");
+//   auto begin_msg = GetMOOSVar("LineBegin");
   // Need LineBegin for the beginning of the survey, after this it should be
   // triggered by AlignmentLineStart
-  if (align_msg->IsFresh() && !m_recording) {
-    auto heading_msg = GetMOOSVar("Heading");
-    auto desired_msg = GetMOOSVar("DesiredHeading");
-    // Don't start logging until actually aligned
-    double angle_diff = angleDiff(desired_msg->GetDoubleVal(),
-      heading_msg->GetDoubleVal());
-    if (angle_diff < 10 || begin_msg->IsFresh()) {
-      begin_msg->SetFresh(false);
-      align_msg->SetFresh(false);
-      if (toupper(align_msg->GetStringVal()) == "TRUE") {
-        #if DEBUG
-        MOOSTrace("**** Line beginning, starting to record swath ****\n");
-        #endif
-        m_recording = true;
-        m_line_end = false;
-      }
-    } else {
-      #if DEBUG
-      MOOSTrace("Turning to line, difference from desired heading: %0.1f\n",
-        angle_diff);
-      #endif
-    }
-  }
+//   if (align_msg->IsFresh() && !m_recording) {
+//     auto heading_msg = GetMOOSVar("Heading");
+//     auto desired_msg = GetMOOSVar("DesiredHeading");
+//     // Don't start logging until actually aligned
+//     double angle_diff = angleDiff(desired_msg->GetDoubleVal(),
+//       heading_msg->GetDoubleVal());
+//     if (angle_diff < 10 || begin_msg->IsFresh()) {
+//       begin_msg->SetFresh(false);
+//       align_msg->SetFresh(false);
+//       if (toupper(align_msg->GetStringVal()) == "TRUE") {
+//         #if DEBUG
+//         MOOSTrace("**** Line beginning, starting to record swath ****\n");
+//         #endif
+//         m_recording = true;
+//         m_line_end = false;
+//       }
+//     } else {
+//       #if DEBUG
+//       MOOSTrace("Turning to line, difference from desired heading: %0.1f\n",
+//         angle_diff);
+//       #endif
+//     }
+//   }
 
   if (m_recording) {
-    auto swath_msg = GetMOOSVar("Swath");
-    if (swath_msg->IsFresh()) {
-      swath_msg->SetFresh(false);
-      if(InjestSwathMessage(swath_msg->GetStringVal())) {
-        #if DEBUG
-        //MOOSTrace("pSurveyPath: Recording Swath message\n");
-        #endif
-        m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
-          m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
-          m_swath_info["depth"]);
-        if (m_line_end && SwathOutsideRegion()) {
-          #if DEBUG
-          MOOSTrace("**** Ending Recording ****\n");
-          #endif
-          m_recording = false;
-          m_execute_path_plan = true;
-        }
-      }
-    }
+//     auto swath_msg = GetMOOSVar("Swath");
+//     if (swath_msg->IsFresh()) {
+//       swath_msg->SetFresh(false);
+//       if(InjestSwathMessage(swath_msg->GetStringVal())) {
+//         #if DEBUG
+//         //MOOSTrace("pSurveyPath: Recording Swath message\n");
+//         #endif
+//         m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
+//           m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
+//           m_swath_info["depth"]);
+//         if (m_line_end && SwathOutsideRegion()) {
+//           #if DEBUG
+//           MOOSTrace("**** Ending Recording ****\n");
+//           #endif
+//           m_recording = false;
+//           m_execute_path_plan = true;
+//         }
+//       }
+//     }
   }
   if (m_line_end) {
-    auto turn_msg = GetMOOSVar("TurnReached");
-    if (turn_msg->IsFresh()) {
-      turn_msg->SetFresh(false);
-      if (m_path_plan_done) {
-        PostTurnPoint();
-      } else {
-        //Hold until processing is done
-        MOOSTrace("pSurveyPath: Holding until processing complete\n");
-        SetMOOSVar("Stop", "true", MOOSTime());
-        m_post_turn_when_ready = true;
-
-        if (m_recording) {
-          // If we still don't have the swath outside the region, plan anyway
-          #if DEBUG
-          MOOSTrace("**** Ending Recording ****\n");
-          #endif
-          m_recording = false;
-          m_execute_path_plan = true;
-        }
-      }
-    } else if (m_post_turn_when_ready && m_path_plan_done) {
-      PostTurnPoint();
-    }
+//     auto turn_msg = GetMOOSVar("TurnReached");
+//     if (turn_msg->IsFresh()) {
+//       turn_msg->SetFresh(false);
+//       if (m_path_plan_done) {
+//         PostTurnPoint();
+//       } else {
+//         //Hold until processing is done
+//         MOOSTrace("pSurveyPath: Holding until processing complete\n");
+//         SetMOOSVar("Stop", "true", MOOSTime());
+//         m_post_turn_when_ready = true;
+// 
+//         if (m_recording) {
+//           // If we still don't have the swath outside the region, plan anyway
+//           #if DEBUG
+//           MOOSTrace("**** Ending Recording ****\n");
+//           #endif
+//           m_recording = false;
+//           m_execute_path_plan = true;
+//         }
+//       }
+//     } else if (m_post_turn_when_ready && m_path_plan_done) {
+//       PostTurnPoint();
+//     }
   }
 
-  auto end_msg = GetMOOSVar("LineEnd");
-  if (end_msg->IsFresh()) {
-    end_msg->SetFresh(false);
-    m_line_end = true;
-    m_path_plan_done = false;
-  }
+//   auto end_msg = GetMOOSVar("LineEnd");
+//   if (end_msg->IsFresh()) {
+//     end_msg->SetFresh(false);
+//     m_line_end = true;
+//     m_path_plan_done = false;
+//   }
 
   if (m_execute_path_plan) {
     m_execute_path_plan = false;
     //clear the last raw path
     if (m_raw_survey_path.size() > 0) {
-      Notify("VIEW_SEGLIST", m_raw_survey_path.get_spec_pts(2)
-          + "active=false,label=raw_path,", MOOSTime());
+//       Notify("VIEW_SEGLIST", m_raw_survey_path.get_spec_pts(2)
+//           + "active=false,label=raw_path,", MOOSTime());
     }
     #if DEBUG
-    MOOSTrace("pSurveyPath: Launching Path Processing Thread\n");
+//    MOOSTrace("pSurveyPath: Launching Path Processing Thread\n");
     #endif
     // Don't restart if already running (shouldn't happen, but for safety)
     if (!m_plan_thread_running) {
@@ -293,15 +295,15 @@ bool SurveyPath::Iterate()
       // thought it through much
       /*m_path_plan_thread = */std::thread(&SurveyPath::CreateNewPath, this).detach();
       #if DEBUG
-      MOOSTrace("pSurveyPath: Thread Launched\n");
+      //MOOSTrace("pSurveyPath: Thread Launched\n");
       #endif
     }
     //m_path_plan_thread.join();
   }
 
-  bool published = PublishFreshMOOSVariables();
+  bool published = true;//PublishFreshMOOSVariables();
 
-  AppCastingMOOSApp::PostReport();
+  //AppCastingMOOSApp::PostReport();
   return(published);
 }
 
@@ -328,8 +330,8 @@ void SurveyPath::PostSurveyRegion() {
   for (auto poly_vertex : ext_ring) {
     survey_limits.add_vertex(poly_vertex.x(), poly_vertex.y());
   }
-  Notify("VIEW_SEGLIST", survey_limits.get_spec_pts(2) + ",label=op_region," +
-    "label_color=red,edge_color=red,vertex_color=red,edge_size=2", MOOSTime());
+//   Notify("VIEW_SEGLIST", survey_limits.get_spec_pts(2) + ",label=op_region," +
+//     "label_color=red,edge_color=red,vertex_color=red,edge_size=2", MOOSTime());
 
   // Set the first path of the survey
   if (m_survey_path.size() < 2) {
@@ -337,7 +339,7 @@ void SurveyPath::PostSurveyRegion() {
     m_survey_path.add_vertex(survey_limits.get_vx(0), survey_limits.get_vy(0));
     m_survey_path.add_vertex(survey_limits.get_vx(1), survey_limits.get_vy(1));
   }
-  SetMOOSVar("SurveyPath", "points=" + m_survey_path.get_spec_pts(2), MOOSTime());
+//  SetMOOSVar("SurveyPath", "points=" + m_survey_path.get_spec_pts(2), MOOSTime());
 
   // Set the alignment lines and turn for the first line
   DetermineStartAndTurn(m_survey_path, true);
@@ -345,25 +347,25 @@ void SurveyPath::PostSurveyRegion() {
   // Set home location = beginning of alignment line
   XYPoint home_pt(m_alignment_line.get_vx(0), m_alignment_line.get_vy(0));
   // Notify("HOME_UPDATE", "station_pt=" + home_pt.get_spec());
-  Notify("HOME_UPDATE", "station_pt=" + std::to_string(m_alignment_line.get_vx(0))
-    + "," + std::to_string(m_alignment_line.get_vy(0)));
+//   Notify("HOME_UPDATE", "station_pt=" + std::to_string(m_alignment_line.get_vx(0))
+//     + "," + std::to_string(m_alignment_line.get_vy(0)));
 
   PostSwathSide();
 }
 
 void SurveyPath::PostTurnPoint() {
   #if DEBUG
-  MOOSTrace("pSurveyPath: Posting Turn Point\n");
+//  MOOSTrace("pSurveyPath: Posting Turn Point\n");
   #endif
-  SetMOOSVar("TurnPoint", "point=" + m_turn_pt.get_spec(), MOOSTime());
+//  SetMOOSVar("TurnPoint", "point=" + m_turn_pt.get_spec(), MOOSTime());
   // Don't restart the survey if there are no points
   if (m_survey_path.size() > 2) {
-    SetMOOSVar("Stop", "false", MOOSTime());
+    //SetMOOSVar("Stop", "false", MOOSTime());
   }
   if (m_raw_survey_path.size() > 0) {
-    Notify("VIEW_SEGLIST", m_raw_survey_path.get_spec_pts(2) + ",label=raw_path," +
-      "label_color=darkgoldenrod,edge_color=darkgoldenrod,vertex_color=yellow,edge_size=2," +
-      "vertex_size=3", MOOSTime());
+//     Notify("VIEW_SEGLIST", m_raw_survey_path.get_spec_pts(2) + ",label=raw_path," +
+//       "label_color=darkgoldenrod,edge_color=darkgoldenrod,vertex_color=yellow,edge_size=2," +
+//       "vertex_size=3", MOOSTime());
   }
   m_post_turn_when_ready = false;
   m_path_plan_done = false;
@@ -372,9 +374,9 @@ void SurveyPath::PostTurnPoint() {
 void SurveyPath::CreateNewPath() {
   #if DEBUG
   if (m_swath_record.GetOutputSide() == BoatSide::Stbd) {
-    MOOSTrace("End of Line, outputting swath points on stbd side.\n");
+    //MOOSTrace("End of Line, outputting swath points on stbd side.\n");
   } else if (m_swath_record.GetOutputSide() == BoatSide::Port){
-    MOOSTrace("End of Line, outputting swath points on port side.\n");
+    //MOOSTrace("End of Line, outputting swath points on port side.\n");
   }
   #endif
   m_swath_record.SaveLast();
@@ -382,22 +384,22 @@ void SurveyPath::CreateNewPath() {
     // TODO: Check for all swath widths being zero to end area
     // Build full coverage model at some point? Or do this in PathPlan...
     #if DEBUG
-    MOOSTrace("Planning next path.\n");
+    //MOOSTrace("Planning next path.\n");
     #endif
     PathPlan planner = PathPlan(m_swath_record, m_swath_side, m_op_region,
       m_swath_overlap, m_max_bend_angle, true);
     m_survey_path = planner.GenerateNextPath();
     #if DEBUG
-    MOOSTrace("Number of pts in new_path: %d\n",m_survey_path.size());
+    //MOOSTrace("Number of pts in new_path: %d\n",m_survey_path.size());
     #endif
     if (m_survey_path.size() > 2) {
       m_posted_path_str = m_survey_path.get_spec_pts(2);  //2 decimal precision
-      SetMOOSVar("SurveyPath", "points=" + m_posted_path_str, MOOSTime());
+      //SetMOOSVar("SurveyPath", "points=" + m_posted_path_str, MOOSTime());
       DetermineStartAndTurn(m_survey_path);
     } else {
-      SetMOOSVar("Stop", "true", MOOSTime());
+      //SetMOOSVar("Stop", "true", MOOSTime());
       #if DEBUG
-      MOOSTrace("Path too short, ending survey\n");
+      //MOOSTrace("Path too short, ending survey\n");
       #endif
     }
     m_swath_side = AdvanceSide(m_swath_side);
@@ -424,7 +426,7 @@ bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts, bool post_turn) {
   m_turn_pt.set_spec_digits(2);
   m_turn_pt_set = true;
   if (post_turn) {
-    SetMOOSVar("TurnPoint", "point=" + m_turn_pt.get_spec(), MOOSTime());
+    //SetMOOSVar("TurnPoint", "point=" + m_turn_pt.get_spec(), MOOSTime());
     m_turn_pt_set = false;
   }
   // This is not posted until the current turn point is reached
@@ -438,11 +440,11 @@ bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts, bool post_turn) {
   m_alignment_line.add_vertex(next_pts.get_vx(0) + start_heading.x(),
     next_pts.get_vy(0) + start_heading.y());
   m_alignment_line.add_vertex(next_pts.get_vx(0), next_pts.get_vy(0));
-  SetMOOSVar("StartPath", "points=" + m_alignment_line.get_spec_pts(2), MOOSTime());
+  //SetMOOSVar("StartPath", "points=" + m_alignment_line.get_spec_pts(2), MOOSTime());
 
   XYSegList to_start_path;
   to_start_path.add_vertex(m_alignment_line.get_vx(0), m_alignment_line.get_vy(0));
-  SetMOOSVar("ToStartPath", "points=" + to_start_path.get_spec_pts(2), MOOSTime());
+  //SetMOOSVar("ToStartPath", "points=" + to_start_path.get_spec_pts(2), MOOSTime());
 
   return true;
 }
@@ -458,9 +460,9 @@ BoatSide SurveyPath::AdvanceSide(BoatSide side) {
 
 void SurveyPath::PostSwathSide() {
   if (m_swath_side == BoatSide::Stbd) {
-    SetMOOSVar("NextSwathSide", "stbd", MOOSTime());
+    //SetMOOSVar("NextSwathSide", "stbd", MOOSTime());
   } else if (m_swath_side == BoatSide::Port) {
-    SetMOOSVar("NextSwathSide", "port", MOOSTime());
+    //SetMOOSVar("NextSwathSide", "port", MOOSTime());
   }
 }
 
@@ -482,16 +484,16 @@ bool SurveyPath::InjestSwathMessage(std::string msg) {
 
 bool SurveyPath::buildReport()
 {
-  m_msgs << "============================================ \n";
-  m_msgs << "File: pSurveyPath                            \n";
-  m_msgs << "============================================ \n";
+//   m_msgs << "============================================ \n";
+//   m_msgs << "File: pSurveyPath                            \n";
+//   m_msgs << "============================================ \n";
 
   if (!m_plan_thread_running) {
-    m_msgs << "Last Path Length: " << m_survey_path.size() << "\n\n";
+    //m_msgs << "Last Path Length: " << m_survey_path.size() << "\n\n";
   }
 
   if (m_recording) {
-    m_msgs << "Recording Swath Info\n";
+    //m_msgs << "Recording Swath Info\n";
   }
 
   // ACTable actab(4);

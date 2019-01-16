@@ -7,7 +7,7 @@
  */
 
 #include "PathPlan.h"
-#include "MOOS/libMOOS/MOOSLib.h"
+//#include "MOOS/libMOOS/MOOSLib.h"
 #include <Eigen/Geometry>
 #include <cmath>
 // #include <stdexcept>
@@ -34,14 +34,14 @@ PathPlan::PathPlan(const RecordSwath &last_swath, BoatSide side, BPolygon op_reg
 
 XYSegList PathPlan::GenerateNextPath() {
   #if DEBUG
-  MOOSTrace("\n======== Generating Next Path ========\n");
+  //MOOSTrace("\n======== Generating Next Path ========\n");
   #endif
 
   XYSegList edge_pts = m_last_line.SwathOuterPts(m_planning_side);
 
   #if DEBUG
-  MOOSTrace("Basis Points: %d\n", edge_pts.size());
-  MOOSTrace(edge_pts.get_spec_pts(2) + "\n");
+  //MOOSTrace("Basis Points: %d\n", edge_pts.size());
+  //MOOSTrace(edge_pts.get_spec_pts(2) + "\n");
   #endif
 
   if (edge_pts.size() < 2)
@@ -52,9 +52,9 @@ XYSegList PathPlan::GenerateNextPath() {
 
   double rot_angle = 0;
   if (m_planning_side == BoatSide::Stbd) {
-    rot_angle = -PI/2;
+    rot_angle = -M_PI/2;
   } else if (m_planning_side == BoatSide::Port) {
-    rot_angle = PI/2;
+    rot_angle = M_PI/2;
   }
   Eigen::Rotation2D<double> rot_matrix(rot_angle);
 
@@ -95,10 +95,10 @@ XYSegList PathPlan::GenerateNextPath() {
       m_next_path_pts.push_back(swath_loc + offset_vec);
 
       #if DEBUG
-      MOOSTrace("Swath Width: %0.2f  Offset X: %0.2f Offset Y: %0.2f Avg Vec: <%0.2f, %0.2f>\n",
-        swath_width, offset_vec.x(), offset_vec.y(), avg_vec.x(), avg_vec.y());
-      MOOSTrace("Back Vec: <%0.2f, %0.2f>, Forward Vec: <%0.2f, %0.2f>\n",
-        back_vec.x(), back_vec.y(), forward_vec.x(), forward_vec.y());
+//       MOOSTrace("Swath Width: %0.2f  Offset X: %0.2f Offset Y: %0.2f Avg Vec: <%0.2f, %0.2f>\n",
+//         swath_width, offset_vec.x(), offset_vec.y(), avg_vec.x(), avg_vec.y());
+//       MOOSTrace("Back Vec: <%0.2f, %0.2f>, Forward Vec: <%0.2f, %0.2f>\n",
+//         back_vec.x(), back_vec.y(), forward_vec.x(), forward_vec.y());
       #endif
     }
     all_zero = all_zero && (swath_width == 0);
@@ -109,7 +109,7 @@ XYSegList PathPlan::GenerateNextPath() {
   // move into this processing.
   if (all_zero) {
     #if DEBUG
-    MOOSTrace("Reached end of path by depth threshold\n");
+    //MOOSTrace("Reached end of path by depth threshold\n");
     #endif
     return XYSegList();
   }
@@ -121,19 +121,19 @@ XYSegList PathPlan::GenerateNextPath() {
   // ---------- Intersections -----------
   unsigned int pre_len = m_next_path_pts.size();
   #if DEBUG
-    MOOSTrace("Eliminating path intersects itself.\n");
+    //MOOSTrace("Eliminating path intersects itself.\n");
   #endif
   RemoveAll(RemoveIntersects, m_next_path_pts);
   #if DEBUG
-    MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
+    //MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
     pre_len = m_next_path_pts.size();
   #endif
 
   // ---------- Bends -----------
   #if DEBUG
-  MOOSTrace("Eliminating sharp bends.\n");
+  //MOOSTrace("Eliminating sharp bends.\n");
   XYSegList pts = VectorListToSegList(m_next_path_pts);
-  MOOSTrace(pts.get_spec_pts(2) + "\n");
+  //MOOSTrace(pts.get_spec_pts(2) + "\n");
   #endif
 
 
@@ -142,7 +142,7 @@ XYSegList PathPlan::GenerateNextPath() {
   RemoveAll(remove_func, m_next_path_pts);
 
   #if DEBUG
-  MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
+  //MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
   pre_len = m_next_path_pts.size();
   #endif
 
@@ -152,14 +152,14 @@ XYSegList PathPlan::GenerateNextPath() {
   std::pair<bool, bool> clipped = std::make_pair(false, false);
   if (m_restrict_asv_to_region) {
     #if DEBUG
-    MOOSTrace("Eliminating points outside op region.\n");
+    //MOOSTrace("Eliminating points outside op region.\n");
     #endif
 
     //RestrictToRegion(m_next_path_pts);
     clipped = ClipToRegion(m_next_path_pts);
 
     #if DEBUG
-    MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
+    //MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
     pre_len = m_next_path_pts.size();
     #endif
 
@@ -172,7 +172,7 @@ XYSegList PathPlan::GenerateNextPath() {
   // Idea: Maybe extend from the point to the nearest edge, not along the
   // vector of the last segment, or add swath width along the edge from last
   #if DEBUG
-  MOOSTrace("Extending ends of path to edge of region.\n");
+  //MOOSTrace("Extending ends of path to edge of region.\n");
   #endif
 
   if (!clipped.first)
@@ -181,7 +181,7 @@ XYSegList PathPlan::GenerateNextPath() {
     ExtendToEdge(m_next_path_pts, false);
 
   #if DEBUG
-  MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
+  //MOOSTrace("Removed %d points.\n", pre_len - m_next_path_pts.size());
   pre_len = m_next_path_pts.size();
   #endif
 
@@ -337,23 +337,23 @@ void PathPlan::RemoveBends(std::list<EPoint> &path_pts) {
         if (angle1 == 500 || angle2 == 500) {
           // Means we are checking a segment at the end of the line
           #if DEBUG
-            MOOSTrace("Encountered default angle state, this is not good.\n");
+            //MOOSTrace("Encountered default angle state, this is not good.\n");
           #endif
         } else {
           if (pts_elim1 > pts_elim2 && pts_elim1 < (pts_elim2 * 2)
               && angle1 < angle2) {
             #if DEBUG
-            MOOSTrace("Bend Fudging - pts_elim1: %d, pts_elim2: %d\n\t"
-                       "angle1: %.2f, angle2: %.2f\n", pts_elim1, pts_elim2,
-                       angle1, angle2);
+//             MOOSTrace("Bend Fudging - pts_elim1: %d, pts_elim2: %d\n\t"
+//                        "angle1: %.2f, angle2: %.2f\n", pts_elim1, pts_elim2,
+//                        angle1, angle2);
             #endif
             pts_elim2 = pts_elim1 + 1;
           } else if (pts_elim2 >= pts_elim1 && pts_elim2 < (pts_elim1 * 2)
                      && angle2 < angle1) {
             #if DEBUG
-            MOOSTrace("Bend Fudging - pts_elim1: %d, pts_elim2: %d\n\t"
-                      "angle1: %.2f, angle2: %.2f\n", pts_elim1, pts_elim2,
-                      angle1, angle2);
+//             MOOSTrace("Bend Fudging - pts_elim1: %d, pts_elim2: %d\n\t"
+//                       "angle1: %.2f, angle2: %.2f\n", pts_elim1, pts_elim2,
+//                       angle1, angle2);
             #endif
             pts_elim1 = pts_elim2 + 1;
           }
@@ -769,7 +769,7 @@ void PathPlan::ExtendToEdge(std::list<EPoint> &path_points, bool begin) {
     }
   } else {
     #if DEBUG
-    MOOSTrace("Reached edge extension max.\n");
+    //MOOSTrace("Reached edge extension max.\n");
     #endif
   }
 }
@@ -848,7 +848,7 @@ double PathPlan::VectorAngle(EPoint vector1, EPoint vector2) {
 
   if (mags == 0)
     return 0;
-  return acos(dotp/mags) * 180/PI;
+  return acos(dotp/mags) * 180/M_PI;
 }
 
 EPoint PathPlan::VectorFromSegment(const std::vector<EPoint>& points, SegIndex segment) {

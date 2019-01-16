@@ -9,19 +9,19 @@
 #define SurveyPath_HEADER
 
 #include <thread>
-#include "MOOS/libMOOS/Thirdparty/AppCasting/AppCastingMOOSApp.h"
+//#include "MOOS/libMOOS/Thirdparty/AppCasting/AppCastingMOOSApp.h"
 #include "XYPoint.h"
 #include "RecordSwath.h"
 #include "PathPlan.h"
 
-class SurveyPath : public AppCastingMOOSApp
+class SurveyPath// : public AppCastingMOOSApp
 {
  public:
    SurveyPath();
    ~SurveyPath() {};
 
  protected: // Standard MOOSApp functions to overload
-   bool OnNewMail(MOOSMSG_LIST &NewMail);
+   //bool OnNewMail(MOOSMSG_LIST &NewMail);
    bool Iterate();
    bool OnConnectToServer();
    bool OnStartUp();

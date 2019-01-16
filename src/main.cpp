@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
   SurveyPath SurveyPath;
 
-  SurveyPath.Run(run_command.c_str(), mission_file.c_str());
+  //SurveyPath.Run(run_command.c_str(), mission_file.c_str());
   
   return(0);
 }
