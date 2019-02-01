@@ -16,6 +16,10 @@
 #include "SurveyPath.h"
 #include <boost/algorithm/string.hpp>
 
+#include "ros/ros.h"
+#include "project11_transformations/LatLongToMap.h"
+
+
 #define DEBUG true
 
 typedef std::list<std::string > STRING_LIST;
@@ -31,84 +35,20 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_post_turn_when_ready{false}, m_path_plan_done{false}, m_max_bend_angle{60},
   m_execute_path_plan{false}, m_plan_thread_running{false}
 {
-  //m_swath_side = AdvanceSide(m_first_swath_side);
-  m_swath_record.SetOutputSide(m_swath_side);
-}
+    m_swath_record.SetOutputSide(m_swath_side);
 
-//---------------------------------------------------------
-// Procedure: OnStartUp()
-//            happens before connection is open
+    //load parameters
+    // "OP_REGION" m_op_region
+    // "FIRST_SIDE" "PORT" "STBD" || "STARBOARD" m_swath_side
+    // "FIRST_LINE" m_survey_path
+    // "OVERLAP_PERCENT" m_swath_overlap
+    // "PATH_INTERVAL" m_swath_interval
+    //      m_swath_record = RecordSwath(m_swath_interval);
+    // "TURN_PT_OFFSET" m_turn_pt_offset
+    // "ALIGNMENT_LINE_LEN" m_alignment_line_len
+    // "MAX_BEND_ANGLE" m_max_bend_angle
 
-bool SurveyPath::OnStartUp()
-{
-  //AppCastingMOOSApp::OnStartUp();
-
-  STRING_LIST sParams;
-//   m_MissionReader.EnableVerbatimQuoting(false);
-//   if(!m_MissionReader.GetConfiguration(GetAppName(), sParams))
-//     reportConfigWarning("No config block found for " + GetAppName());
-
-  STRING_LIST::iterator p;
-  for(p=sParams.begin(); p!=sParams.end(); p++) {
-    std::string orig  = *p;
-    //MOOSTrace("pSurveyPath Parameter: " + orig + "\n");
-    std::string line  = *p;
-    std::string param = toupper(biteStringX(line, '='));
-    std::string value = line;
-    double dval  = atof(value.c_str());
-
-    bool handled = false;
-    if(param == "OP_REGION") {
-      std::regex pattern("_");
-      std::string spaces_added = std::regex_replace(line, pattern, " ");
-      //MOOSTrace("pSurveyPath After Spaces: " + spaces_added + "\n");
-      boost::geometry::read_wkt(spaces_added, m_op_region);
-      boost::geometry::correct(m_op_region);
-      handled = true;
-    }
-    else if(param == "FIRST_SIDE") {
-      if (toupper(value) == "PORT") {
-        m_swath_side = BoatSide::Port;
-      } else if (toupper(value) == "STBD" || toupper(value) == "STARBOARD") {
-        m_swath_side = BoatSide::Stbd;
-      }
-      m_swath_record.SetOutputSide(m_swath_side);
-      PostSwathSide();
-      handled = true;
-    }
-    else if (param == "FIRST_LINE") {
-      if (toupper(value).compare("AUTO") != 0) {
-        m_survey_path = string2SegList(value);
-        //MOOSTrace("First Line Set: " + m_survey_path.get_spec_pts(2) + "\n");
-      }
-      handled = true;
-    }
-    else if (param == "OVERLAP_PERCENT" && isNumber(value)) {
-      m_swath_overlap = dval/100;
-      handled = true;
-    }
-    else if (param == "PATH_INTERVAL" && isNumber(value)) {
-      m_swath_interval = dval;
-      m_swath_record = RecordSwath(m_swath_interval);
-      handled = true;
-    }
-    else if (param == "TURN_PT_OFFSET" && isNumber(value)) {
-      m_turn_pt_offset = dval;
-      handled = true;
-    }
-    else if (param == "ALIGNMENT_LINE_LEN" && isNumber(value)) {
-      m_alignment_line_len = dval;
-      handled = true;
-    }
-    else if (param == "MAX_BEND_ANGLE" && isNumber(value)) {
-      m_max_bend_angle = dval;
-      handled = true;
-    }
-
-    if(!handled && param != "TERM_REPORTING")
-    {}//reportUnhandledConfigWarning(orig);
-  }
-
+    
   // Reception variables
 //   AddMOOSVariable("Swath", "SWATH_WIDTH", "", 0);
 //   AddMOOSVariable("LineBegin", "LINE_BEGIN", "", 0);
@@ -128,9 +68,13 @@ bool SurveyPath::OnStartUp()
 
   //On Connect to Surver called before this
   registerVariables();
-  PostSurveyRegion();
+  //PostSurveyRegion();
 
-  return(true);
+  //return(true);
+  
+  ros::Subscriber survey_area_sub = m_node.subscribe("/project11/mission_manager/survey_area",10, &SurveyPath::surveyAreaCallback, this);
+  
+  ros::spin();
 }
 
 //---------------------------------------------------------
@@ -317,6 +261,29 @@ bool SurveyPath::SwathOutsideRegion() {
   outside_region = outside_region && !boost::geometry::within(stbd_edge, outer_ring);
 
   return outside_region;
+}
+
+void SurveyPath::surveyAreaCallback(const geographic_msgs::GeoPath::ConstPtr &inmsg)
+{
+    
+    m_op_region.clear();
+    
+    std::cerr << "SurveyPath::surveyAreaCallback: waiting for wgs84_to_map service..." << std::endl;
+    ros::service::waitForService("wgs84_to_map");
+    std::cerr << "done!" << std::endl;
+    ros::ServiceClient client = m_node.serviceClient<project11_transformations::LatLongToMap>("wgs84_to_map");
+    
+    for(auto point: inmsg->poses)
+    {
+        project11_transformations::LatLongToMap ll2map;
+        ll2map.request.wgs84.position = point.pose.position;
+        if(client.call(ll2map))
+        {
+            boost::geometry::append(m_op_region.outer(), BPoint(ll2map.response.map.point.x,ll2map.response.map.point.y));
+        }
+    }
+    
+    PostSurveyRegion();
 }
 
 void SurveyPath::PostSurveyRegion() {

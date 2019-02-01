@@ -5,6 +5,7 @@ add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  project11_transformations
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)

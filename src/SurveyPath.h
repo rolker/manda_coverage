@@ -8,11 +8,14 @@
 #ifndef SurveyPath_HEADER
 #define SurveyPath_HEADER
 
+#include <ros/ros.h>
+#include <geographic_msgs/GeoPath.h>
 #include <thread>
-//#include "MOOS/libMOOS/Thirdparty/AppCasting/AppCastingMOOSApp.h"
 #include "XYPoint.h"
 #include "RecordSwath.h"
 #include "PathPlan.h"
+
+
 
 class SurveyPath// : public AppCastingMOOSApp
 {
@@ -39,6 +42,8 @@ class SurveyPath// : public AppCastingMOOSApp
    void CreateNewPath();
    void PostSwathSide();
    bool SwathOutsideRegion();
+   
+   void surveyAreaCallback(const geographic_msgs::GeoPath::ConstPtr &inmsg);
 
  private: // Configuration variables
   BoatSide m_first_swath_side;
@@ -78,6 +83,8 @@ class SurveyPath// : public AppCastingMOOSApp
 
   std::thread m_path_plan_thread;
   bool m_plan_thread_running;
+  
+  ros::NodeHandle m_node;
 };
 
 #endif
