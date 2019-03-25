@@ -10,6 +10,10 @@
 
 #include <ros/ros.h>
 #include <geographic_msgs/GeoPath.h>
+#include <sensor_msgs/PointCloud.h>
+#include <std_msgs/Float32.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <marine_msgs/NavEulerStamped.h>
 #include <thread>
 #include "XYPoint.h"
 #include "RecordSwath.h"
@@ -44,6 +48,10 @@ class SurveyPath// : public AppCastingMOOSApp
    bool SwathOutsideRegion();
    
    void surveyAreaCallback(const geographic_msgs::GeoPath::ConstPtr &inmsg);
+   void pingCallback(const sensor_msgs::PointCloud::ConstPtr &inmsg);
+   void depthCallback(const std_msgs::Float32::ConstPtr &inmsg);
+   void positionCallback(const geometry_msgs::PoseStamped::ConstPtr &inmsg);
+   void headingCallback(const marine_msgs::NavEulerStamped::ConstPtr &inmsg);
 
  private: // Configuration variables
   BoatSide m_first_swath_side;

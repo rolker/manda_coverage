@@ -73,6 +73,10 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   //return(true);
   
   ros::Subscriber survey_area_sub = m_node.subscribe("/project11/mission_manager/survey_area",10, &SurveyPath::surveyAreaCallback, this);
+  ros::Subscriber ping_sub = m_node.subscribe("/mbes_ping",10, &SurveyPath::pingCallback, this);
+  ros::Subscriber depth_sub = m_node.subscribe("/depth",10, &SurveyPath::depthCallback, this);
+  ros::Subscriber position_sub = m_node.subscribe("/position_map", 10, &SurveyPath::positionCallback, this);
+  ros::Subscriber heading_sub = m_node.subscribe("/heading", 10, &SurveyPath::headingCallback, this);
   
   ros::spin();
 }
@@ -135,6 +139,38 @@ void SurveyPath::registerVariables()
 // Procedure: Iterate()
 //            happens AppTick times per second
 
+void SurveyPath::pingCallback(const sensor_msgs::PointCloud::ConstPtr& inmsg)
+{
+    float miny, maxy;
+    
+    miny = maxy = inmsg->points[0].y;
+    for (auto p: inmsg->points)
+    {
+        miny = std::min(miny,p.y);
+        maxy = std::max(maxy,p.y);
+    }
+    m_swath_info["port"] = maxy;
+    m_swath_info["stbd"] = miny;
+    Iterate();
+}
+
+void SurveyPath::depthCallback(const std_msgs::Float32::ConstPtr& inmsg)
+{
+    m_swath_info["depth"] = inmsg->data;
+}
+
+void SurveyPath::positionCallback(const geometry_msgs::PoseStamped::ConstPtr& inmsg)
+{
+    m_swath_info["x"] = inmsg->pose.position.x;
+    m_swath_info["y"] = inmsg->pose.position.y;
+}
+
+void SurveyPath::headingCallback(const marine_msgs::NavEulerStamped::ConstPtr& inmsg)
+{
+    m_swath_info["hdg"] = inmsg->orientation.heading;
+}
+
+
 bool SurveyPath::Iterate()
 {
 //  AppCastingMOOSApp::Iterate();
@@ -176,16 +212,16 @@ bool SurveyPath::Iterate()
 //         #if DEBUG
 //         //MOOSTrace("pSurveyPath: Recording Swath message\n");
 //         #endif
-//         m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
-//           m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
-//           m_swath_info["depth"]);
-//         if (m_line_end && SwathOutsideRegion()) {
+         m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
+           m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
+           m_swath_info["depth"]);
+         if (m_line_end && SwathOutsideRegion()) {
 //           #if DEBUG
 //           MOOSTrace("**** Ending Recording ****\n");
 //           #endif
-//           m_recording = false;
-//           m_execute_path_plan = true;
-//         }
+           m_recording = false;
+           m_execute_path_plan = true;
+         }
 //       }
 //     }
   }
@@ -280,10 +316,14 @@ void SurveyPath::surveyAreaCallback(const geographic_msgs::GeoPath::ConstPtr &in
         if(client.call(ll2map))
         {
             boost::geometry::append(m_op_region.outer(), BPoint(ll2map.response.map.point.x,ll2map.response.map.point.y));
+            std::cerr << ll2map.response.map.point.x << ", " << ll2map.response.map.point.y << std::endl;
         }
     }
     
     PostSurveyRegion();
+    
+    m_recording = true;
+    m_line_end = false;
 }
 
 void SurveyPath::PostSurveyRegion() {
