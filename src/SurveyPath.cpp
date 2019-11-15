@@ -33,7 +33,8 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_line_begin{false}, m_turn_reached{false}, m_recording{false},
   m_swath_record(10), m_swath_side{BoatSide::Stbd}, m_turn_pt_set{false},
   m_post_turn_when_ready{false}, m_path_plan_done{false}, m_max_bend_angle{60},
-  m_execute_path_plan{false}, m_plan_thread_running{false}
+  m_execute_path_plan{false}, m_plan_thread_running{false},
+  m_action_server(m_node, "survey_area_action", false),m_autonomous_state(false)
 {
     m_swath_record.SetOutputSide(m_swath_side);
 
@@ -48,96 +49,19 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
     // "ALIGNMENT_LINE_LEN" m_alignment_line_len
     // "MAX_BEND_ANGLE" m_max_bend_angle
 
-    
-  // Reception variables
-//   AddMOOSVariable("Swath", "SWATH_WIDTH", "", 0);
-//   AddMOOSVariable("LineBegin", "LINE_BEGIN", "", 0);
-//   AddMOOSVariable("LineEnd", "LINE_END", "", 0);
-//   AddMOOSVariable("TurnReached", "TURN_REACHED", "", 0);
-//   AddMOOSVariable("AlignmentLineStart", "ALIGN_LINE", "", 0);
-//   AddMOOSVariable("Heading", "NAV_HEADING", "", 0);
-//   AddMOOSVariable("DesiredHeading", "DESIRED_HEADING", "", 0);
-
-  // Publish variables
-//   AddMOOSVariable("TurnPoint", "", "TURN_UPDATE", 0);
-//   AddMOOSVariable("Stop", "", "FAULT", 0);
-//   AddMOOSVariable("SurveyPath", "", "SURVEY_UPDATE", 0);
-//   AddMOOSVariable("StartPath", "", "START_UPDATE", 0);
-//   AddMOOSVariable("ToStartPath", "", "TO_START_UPDATE", 0);
-//   AddMOOSVariable("NextSwathSide", "", "NEXT_SWATH_SIDE", 0);
-
-  //On Connect to Surver called before this
-  registerVariables();
-  //PostSurveyRegion();
-
-  //return(true);
   
-  ros::Subscriber survey_area_sub = m_node.subscribe("/project11/mission_manager/survey_area",10, &SurveyPath::surveyAreaCallback, this);
   ros::Subscriber ping_sub = m_node.subscribe("/mbes_ping",10, &SurveyPath::pingCallback, this);
   ros::Subscriber depth_sub = m_node.subscribe("/depth",10, &SurveyPath::depthCallback, this);
   ros::Subscriber position_sub = m_node.subscribe("/position_map", 10, &SurveyPath::positionCallback, this);
   ros::Subscriber heading_sub = m_node.subscribe("/heading", 10, &SurveyPath::headingCallback, this);
-  
-  ros::spin();
+    ros::Subscriber state_sub = m_node.subscribe("/project11/piloting_mode", 10, &SurveyPath::stateCallback, this);
+
+    m_action_server.registerGoalCallback(boost::bind(&SurveyPath::goalCallback, this));
+    m_action_server.registerPreemptCallback(boost::bind(&SurveyPath::preemptCallback, this));
+    m_action_server.start();
+
+    ros::spin();
 }
-
-//---------------------------------------------------------
-// Procedure: OnConnectToServer
-
-bool SurveyPath::OnConnectToServer()
-{
-  bool published = true;//PublishFreshMOOSVariables();
-  return(published);
-}
-
-//---------------------------------------------------------
-// Procedure: registerVariables
-
-void SurveyPath::registerVariables()
-{
-  //AppCastingMOOSApp::RegisterVariables();
-  //RegisterMOOSVariables();
-}
-
-//---------------------------------------------------------
-// Procedure: OnNewMail
-
-// bool SurveyPath::OnNewMail(MOOSMSG_LIST &NewMail)
-// {
-//   AppCastingMOOSApp::OnNewMail(NewMail);
-// 
-//   UpdateMOOSVariables(NewMail);
-
-//   MOOSMSG_LIST::iterator p;
-//   for(p=NewMail.begin(); p!=NewMail.end(); p++) {
-//     CMOOSMsg &msg = *p;
-//     string key    = msg.GetKey();
-//
-// #if 0 // Keep these around just for template
-//     string comm  = msg.GetCommunity();
-//     double dval  = msg.GetDouble();
-//     string sval  = msg.GetString();
-//     string msrc  = msg.GetSource();
-//     double mtime = msg.GetTime();
-//     bool   mdbl  = msg.IsDouble();
-//     bool   mstr  = msg.IsString();
-// #endif
-//
-//      if(key == "SWATH_WIDTH")
-//        cout << "great!";
-//
-//      else if(key != "APPCAST_REQ") // handle by AppCastingMOOSApp
-//        reportRunWarning("Unhandled Mail: " + key);
-//    }
-
-
-
-//   return(true);
-// }
-
-//---------------------------------------------------------
-// Procedure: Iterate()
-//            happens AppTick times per second
 
 void SurveyPath::pingCallback(const sensor_msgs::PointCloud::ConstPtr& inmsg)
 {
@@ -168,6 +92,11 @@ void SurveyPath::positionCallback(const geometry_msgs::PoseStamped::ConstPtr& in
 void SurveyPath::headingCallback(const marine_msgs::NavEulerStamped::ConstPtr& inmsg)
 {
     m_swath_info["hdg"] = inmsg->orientation.heading;
+}
+
+void SurveyPath::stateCallback(const std_msgs::String::ConstPtr &inmsg)
+{
+    m_autonomous_state = inmsg->data == "autonomous";
 }
 
 
@@ -299,31 +228,36 @@ bool SurveyPath::SwathOutsideRegion() {
   return outside_region;
 }
 
-void SurveyPath::surveyAreaCallback(const geographic_msgs::GeoPath::ConstPtr &inmsg)
+void SurveyPath::goalCallback()
 {
-    
+    auto goal = m_action_server.acceptNewGoal();
+
     m_op_region.clear();
     
     std::cerr << "SurveyPath::surveyAreaCallback: waiting for wgs84_to_map service..." << std::endl;
     ros::service::waitForService("wgs84_to_map");
     std::cerr << "done!" << std::endl;
     ros::ServiceClient client = m_node.serviceClient<project11_transformations::LatLongToMap>("wgs84_to_map");
-    
-    for(auto point: inmsg->poses)
+
+    for(auto point: goal->area)
     {
         project11_transformations::LatLongToMap ll2map;
-        ll2map.request.wgs84.position = point.pose.position;
+        ll2map.request.wgs84.position = point;
         if(client.call(ll2map))
         {
             boost::geometry::append(m_op_region.outer(), BPoint(ll2map.response.map.point.x,ll2map.response.map.point.y));
             std::cerr << ll2map.response.map.point.x << ", " << ll2map.response.map.point.y << std::endl;
         }
     }
-    
     PostSurveyRegion();
     
     m_recording = true;
     m_line_end = false;
+}
+
+void SurveyPath::preemptCallback()
+{
+    m_action_server.setPreempted();
 }
 
 void SurveyPath::PostSurveyRegion() {
@@ -484,30 +418,4 @@ bool SurveyPath::InjestSwathMessage(std::string msg) {
     m_swath_info[param] = std::stod(component);
   }
   return true;
-}
-
-//------------------------------------------------------------
-// Procedure: buildReport()
-
-bool SurveyPath::buildReport()
-{
-//   m_msgs << "============================================ \n";
-//   m_msgs << "File: pSurveyPath                            \n";
-//   m_msgs << "============================================ \n";
-
-  if (!m_plan_thread_running) {
-    //m_msgs << "Last Path Length: " << m_survey_path.size() << "\n\n";
-  }
-
-  if (m_recording) {
-    //m_msgs << "Recording Swath Info\n";
-  }
-
-  // ACTable actab(4);
-  // actab << "Alpha | Bravo | Charlie | Delta";
-  // actab.addHeaderLines();
-  // actab << "one" << "two" << "three" << "four";
-  // m_msgs << actab.getFormattedString();
-
-  return(true);
 }

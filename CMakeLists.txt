@@ -6,9 +6,17 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   project11_transformations
+  geographic_msgs
+  genmsg
+  actionlib_msgs
+  actionlib
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
+
+add_action_files(DIRECTORY action FILES manda_coverage.action)
+generate_messages(DEPENDENCIES actionlib_msgs geographic_msgs)
+
 
 catkin_package(
 #  INCLUDE_DIRS include

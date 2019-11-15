@@ -11,10 +11,10 @@
   <license>BSD</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>project11_transformations</build_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <exec_depend>roscpp</exec_depend>
+  <depend>roscpp</depend>
+  <depend>project11_transformations</depend>
+  <depend>actionlib</depend>
+  <depend>actionlib_msgs</depend>
 
   <export>
   </export>

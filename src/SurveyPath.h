@@ -12,8 +12,11 @@
 #include <geographic_msgs/GeoPath.h>
 #include <sensor_msgs/PointCloud.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/String.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <marine_msgs/NavEulerStamped.h>
+#include "manda_coverage/manda_coverageAction.h"
+#include "actionlib/server/simple_action_server.h"
 #include <thread>
 #include "XYPoint.h"
 #include "RecordSwath.h"
@@ -21,23 +24,18 @@
 
 
 
-class SurveyPath// : public AppCastingMOOSApp
+class SurveyPath
 {
  public:
    SurveyPath();
    ~SurveyPath() {};
 
- protected: // Standard MOOSApp functions to overload
-   //bool OnNewMail(MOOSMSG_LIST &NewMail);
+ protected:
    bool Iterate();
    bool OnConnectToServer();
    bool OnStartUp();
 
- protected: // Standard AppCastingMOOSApp function to overload
-   bool buildReport();
-
  protected:
-   void registerVariables();
    BoatSide AdvanceSide(BoatSide side);
    bool InjestSwathMessage(std::string msg);
    void PostSurveyRegion();
@@ -47,11 +45,13 @@ class SurveyPath// : public AppCastingMOOSApp
    void PostSwathSide();
    bool SwathOutsideRegion();
    
-   void surveyAreaCallback(const geographic_msgs::GeoPath::ConstPtr &inmsg);
+   void goalCallback();
+   void preemptCallback();
    void pingCallback(const sensor_msgs::PointCloud::ConstPtr &inmsg);
    void depthCallback(const std_msgs::Float32::ConstPtr &inmsg);
    void positionCallback(const geometry_msgs::PoseStamped::ConstPtr &inmsg);
    void headingCallback(const marine_msgs::NavEulerStamped::ConstPtr &inmsg);
+   void stateCallback(const std_msgs::String::ConstPtr &inmag);
 
  private: // Configuration variables
   BoatSide m_first_swath_side;
@@ -93,6 +93,9 @@ class SurveyPath// : public AppCastingMOOSApp
   bool m_plan_thread_running;
   
   ros::NodeHandle m_node;
+  actionlib::SimpleActionServer<manda_coverage::manda_coverageAction> m_action_server;
+  bool m_autonomous_state;
+
 };
 
 #endif
