@@ -18,7 +18,8 @@
 
 #include "ros/ros.h"
 #include "project11_transformations/LatLongToMap.h"
-
+#include "project11_transformations/MapToLatLong.h"
+#include <geographic_msgs/GeoPoseStamped.h>
 
 #define DEBUG true
 
@@ -34,7 +35,8 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_swath_record(10), m_swath_side{BoatSide::Stbd}, m_turn_pt_set{false},
   m_post_turn_when_ready{false}, m_path_plan_done{false}, m_max_bend_angle{60},
   m_execute_path_plan{false}, m_plan_thread_running{false},
-  m_action_server(m_node, "survey_area_action", false),m_autonomous_state(false)
+  m_action_server(m_node, "survey_area_action", false),
+  m_path_follower_client(m_node, "path_follower_action"), m_autonomous_state(false)
 {
     m_swath_record.SetOutputSide(m_swath_side);
 
@@ -59,6 +61,10 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
     m_action_server.registerGoalCallback(boost::bind(&SurveyPath::goalCallback, this));
     m_action_server.registerPreemptCallback(boost::bind(&SurveyPath::preemptCallback, this));
     m_action_server.start();
+    
+    ROS_INFO("Waiting for path_follower action server to start.");
+    m_path_follower_client.waitForServer();
+    ROS_INFO("Action server started.");
 
     ros::spin();
 }
@@ -100,7 +106,7 @@ void SurveyPath::stateCallback(const std_msgs::String::ConstPtr &inmsg)
 }
 
 
-bool SurveyPath::Iterate()
+void SurveyPath::Iterate()
 {
 //  AppCastingMOOSApp::Iterate();
 
@@ -209,11 +215,6 @@ bool SurveyPath::Iterate()
     }
     //m_path_plan_thread.join();
   }
-
-  bool published = true;//PublishFreshMOOSVariables();
-
-  //AppCastingMOOSApp::PostReport();
-  return(published);
 }
 
 bool SurveyPath::SwathOutsideRegion() {
@@ -231,6 +232,8 @@ bool SurveyPath::SwathOutsideRegion() {
 void SurveyPath::goalCallback()
 {
     auto goal = m_action_server.acceptNewGoal();
+    
+    m_desired_speed = goal->speed;
 
     m_op_region.clear();
     
@@ -384,10 +387,40 @@ bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts, bool post_turn) {
   //SetMOOSVar("StartPath", "points=" + m_alignment_line.get_spec_pts(2), MOOSTime());
 
   XYSegList to_start_path;
+  to_start_path.add_vertex( m_swath_info["x"], m_swath_info["y"]);
   to_start_path.add_vertex(m_alignment_line.get_vx(0), m_alignment_line.get_vy(0));
+  
   //SetMOOSVar("ToStartPath", "points=" + to_start_path.get_spec_pts(2), MOOSTime());
+  sendPath(to_start_path);
 
   return true;
+}
+
+void SurveyPath::sendPath(XYSegList const &path)
+{
+    path_follower::path_followerGoal goal;
+    goal.speed = m_desired_speed;
+    std::cerr << "SurveyPath::sendPath: waiting for map_to_wgs84..." << std::endl;
+    ros::service::waitForService("map_to_wgs84");
+    std::cerr << "done!" << std::endl;
+    ros::ServiceClient client = m_node.serviceClient<project11_transformations::MapToLatLong>("map_to_wgs84");
+    
+    for(int i = 0; i < path.size(); i++)
+    {
+        project11_transformations::MapToLatLong map2ll;
+        map2ll.request.map.point.x = path.get_vx(i);
+        map2ll.request.map.point.y = path.get_vy(i);
+        if(client.call(map2ll))
+        {
+            geographic_msgs::GeoPoseStamped gps;
+            gps.pose.position.latitude = map2ll.response.wgs84.position.latitude;
+            gps.pose.position.longitude = map2ll.response.wgs84.position.longitude;
+            goal.path.poses.push_back(gps);
+        }
+    }
+    
+    m_path_follower_client.sendGoal(goal);
+    
 }
 
 BoatSide SurveyPath::AdvanceSide(BoatSide side) {

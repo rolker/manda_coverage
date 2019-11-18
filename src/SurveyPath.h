@@ -17,6 +17,8 @@
 #include <marine_msgs/NavEulerStamped.h>
 #include "manda_coverage/manda_coverageAction.h"
 #include "actionlib/server/simple_action_server.h"
+#include <actionlib/client/simple_action_client.h>
+#include <path_follower/path_followerAction.h>
 #include <thread>
 #include "XYPoint.h"
 #include "RecordSwath.h"
@@ -31,9 +33,7 @@ class SurveyPath
    ~SurveyPath() {};
 
  protected:
-   bool Iterate();
-   bool OnConnectToServer();
-   bool OnStartUp();
+   void Iterate();
 
  protected:
    BoatSide AdvanceSide(BoatSide side);
@@ -53,6 +53,7 @@ class SurveyPath
    void headingCallback(const marine_msgs::NavEulerStamped::ConstPtr &inmsg);
    void stateCallback(const std_msgs::String::ConstPtr &inmag);
 
+   void sendPath(XYSegList const &);
  private: // Configuration variables
   BoatSide m_first_swath_side;
   double m_swath_interval;
@@ -94,6 +95,10 @@ class SurveyPath
   
   ros::NodeHandle m_node;
   actionlib::SimpleActionServer<manda_coverage::manda_coverageAction> m_action_server;
+  
+  actionlib::SimpleActionClient<path_follower::path_followerAction> m_path_follower_client;
+  
+  double m_desired_speed;
   bool m_autonomous_state;
 
 };
