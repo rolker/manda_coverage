@@ -254,7 +254,7 @@ void SurveyPath::goalCallback()
     }
     PostSurveyRegion();
     
-    m_recording = true;
+    //m_recording = true;
     m_line_end = false;
 }
 
@@ -419,8 +419,14 @@ void SurveyPath::sendPath(XYSegList const &path)
         }
     }
     
-    m_path_follower_client.sendGoal(goal);
-    
+    m_path_follower_client.sendGoal(goal, boost::bind(&SurveyPath::PathFollowerDoneCallback, this, _1, _2));
+    m_line_end = false;
+}
+
+void SurveyPath::PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result)
+{
+    m_line_end = true;
+    Iterate();
 }
 
 BoatSide SurveyPath::AdvanceSide(BoatSide side) {

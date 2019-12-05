@@ -54,6 +54,8 @@ class SurveyPath
    void stateCallback(const std_msgs::String::ConstPtr &inmag);
 
    void sendPath(XYSegList const &);
+   void PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result);
+
  private: // Configuration variables
   BoatSide m_first_swath_side;
   double m_swath_interval;
