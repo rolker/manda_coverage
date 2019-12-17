@@ -32,7 +32,7 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_swath_interval{10}, m_alignment_line_len{10}, m_turn_pt_offset{15},
   m_remove_in_coverage{false}, m_swath_overlap{0.2}, m_line_end{false},
   m_line_begin{false}, m_turn_reached{false}, m_recording{false},
-  m_swath_record(10), m_swath_side{BoatSide::Stbd}, m_turn_pt_set{false},
+  m_swath_record(10), m_state(idle), m_swath_side{BoatSide::Stbd}, m_turn_pt_set{false},
   m_post_turn_when_ready{false}, m_path_plan_done{false}, m_max_bend_angle{60},
   m_execute_path_plan{false}, m_plan_thread_running{false},
   m_action_server(m_node, "survey_area_action", false),
@@ -160,7 +160,14 @@ void SurveyPath::Iterate()
 //       }
 //     }
   }
-  if (m_line_end) {
+    if (m_line_end) {
+        if(m_state == transit)
+        {
+            m_line_end = false;
+            sendPath(m_survey_path);
+            m_state = survey;
+            m_recording = true;
+        }
 //     auto turn_msg = GetMOOSVar("TurnReached");
 //     if (turn_msg->IsFresh()) {
 //       turn_msg->SetFresh(false);
@@ -288,13 +295,6 @@ void SurveyPath::PostSurveyRegion() {
   // Set the alignment lines and turn for the first line
   DetermineStartAndTurn(m_survey_path, true);
 
-  // Set home location = beginning of alignment line
-  XYPoint home_pt(m_alignment_line.get_vx(0), m_alignment_line.get_vy(0));
-  // Notify("HOME_UPDATE", "station_pt=" + home_pt.get_spec());
-//   Notify("HOME_UPDATE", "station_pt=" + std::to_string(m_alignment_line.get_vx(0))
-//     + "," + std::to_string(m_alignment_line.get_vy(0)));
-
-  PostSwathSide();
 }
 
 void SurveyPath::PostTurnPoint() {
@@ -347,7 +347,7 @@ void SurveyPath::CreateNewPath() {
       #endif
     }
     m_swath_side = AdvanceSide(m_swath_side);
-    PostSwathSide();
+    //PostSwathSide();
     m_swath_record.SetOutputSide(m_swath_side);
     m_swath_record.ResetLine();
     m_raw_survey_path = planner.GetRawPath();
@@ -392,6 +392,7 @@ bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts, bool post_turn) {
   
   //SetMOOSVar("ToStartPath", "points=" + to_start_path.get_spec_pts(2), MOOSTime());
   sendPath(to_start_path);
+  m_state = transit;
 
   return true;
 }
@@ -436,14 +437,6 @@ BoatSide SurveyPath::AdvanceSide(BoatSide side) {
    return BoatSide::Stbd;
   }
   return BoatSide::Unknown;
-}
-
-void SurveyPath::PostSwathSide() {
-  if (m_swath_side == BoatSide::Stbd) {
-    //SetMOOSVar("NextSwathSide", "stbd", MOOSTime());
-  } else if (m_swath_side == BoatSide::Port) {
-    //SetMOOSVar("NextSwathSide", "port", MOOSTime());
-  }
 }
 
 bool SurveyPath::InjestSwathMessage(std::string msg) {

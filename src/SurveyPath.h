@@ -42,7 +42,6 @@ class SurveyPath
    void PostTurnPoint();
    bool DetermineStartAndTurn(XYSegList& next_pts, bool post_turn = false);
    void CreateNewPath();
-   void PostSwathSide();
    bool SwathOutsideRegion();
    
    void goalCallback();
@@ -66,6 +65,9 @@ class SurveyPath
   double m_max_bend_angle;
 
  private: // State variables
+     enum State {idle, transit, survey};
+     State m_state;
+     
   //BoatSide m_next_swath_side;
   BoatSide m_swath_side;
   // double m_swath_width;
