@@ -23,7 +23,7 @@
 #include "XYPoint.h"
 #include "RecordSwath.h"
 #include "PathPlan.h"
-
+#include "project11_transformations/local_services.h"
 
 
 class SurveyPath
@@ -82,6 +82,9 @@ private: // State variables
     XYSegList m_alignment_line;
 
     ros::NodeHandle m_node;
+    ros::Publisher m_display_pub;
+
+    project11::Transformations m_transformations;
     actionlib::SimpleActionServer<manda_coverage::manda_coverageAction> m_action_server;
     
     actionlib::SimpleActionClient<path_follower::path_followerAction> m_path_follower_client;

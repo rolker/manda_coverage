@@ -17,9 +17,8 @@
 #include <boost/algorithm/string.hpp>
 
 #include "ros/ros.h"
-#include "project11_transformations/LatLongToMap.h"
-#include "project11_transformations/MapToLatLong.h"
 #include <geographic_msgs/GeoPoseStamped.h>
+#include "geographic_visualization_msgs/GeoVizItem.h"
 
 #define DEBUG true
 
@@ -34,7 +33,7 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_line_begin{false}, m_turn_reached{false}, m_recording{false},
   m_swath_record(10), m_state(idle), m_swath_side{BoatSide::Stbd},
    m_max_bend_angle{60},
-  m_execute_path_plan{false},
+  m_execute_path_plan{false}, m_transformations(m_node),
   m_action_server(m_node, "survey_area_action", false),
   m_path_follower_client(m_node, "path_follower_action"), m_autonomous_state(false)
 {
@@ -45,6 +44,8 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
     ros::Subscriber position_sub = m_node.subscribe("/position_map", 10, &SurveyPath::positionCallback, this);
     ros::Subscriber heading_sub = m_node.subscribe("/heading", 10, &SurveyPath::headingCallback, this);
     ros::Subscriber state_sub = m_node.subscribe("/project11/piloting_mode", 10, &SurveyPath::stateCallback, this);
+    
+    m_display_pub = m_node.advertise<geographic_visualization_msgs::GeoVizItem>("/project11/display",5);
 
     m_action_server.registerGoalCallback(boost::bind(&SurveyPath::goalCallback, this));
     m_action_server.registerPreemptCallback(boost::bind(&SurveyPath::preemptCallback, this));
@@ -101,6 +102,36 @@ void SurveyPath::Iterate()
         m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
                                  m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
                                  m_swath_info["depth"]);
+        
+        XYSegList points = m_swath_record.SwathOuterPts(m_swath_side);
+        geographic_visualization_msgs::GeoVizItem vizItem;
+        vizItem.id = "manda_coverage_swath";
+        if(points.size() > 0)
+        {
+            while (!m_transformations.haveOrigin())
+            {
+                std::cerr << "SurveyPath::Iterate waiting for origin..." << std::endl;
+                ros::Duration(0.5).sleep();
+            }
+
+            geographic_visualization_msgs::GeoVizPointList plist;
+            plist.size = 2;
+            for(int i = 0; i < points.size(); i++)
+            {
+                geometry_msgs::Point p;
+                p.x = points.get_vx(i);
+                p.y = points.get_vy(i);
+                
+                geographic_msgs::GeoPoint gp = m_transformations.map_to_wgs84(p);
+                plist.points.push_back(gp);
+            }
+            plist.color.r = .3;
+            plist.color.g = .4;
+            plist.color.b = .5;
+            plist.color.a = .5;
+            vizItem.lines.push_back(plist);
+        }
+        m_display_pub.publish(vizItem);
     }
     if (m_line_end) 
     {
@@ -141,22 +172,17 @@ void SurveyPath::goalCallback()
     m_desired_speed = goal->speed;
 
     m_op_region.clear();
-    
-    std::cerr << "SurveyPath::surveyAreaCallback: waiting for wgs84_to_map service..." << std::endl;
-    ros::service::waitForService("wgs84_to_map");
-    std::cerr << "done!" << std::endl;
-    ros::ServiceClient client = m_node.serviceClient<project11_transformations::LatLongToMap>("wgs84_to_map");
 
+
+    while (!m_transformations.haveOrigin())
+        ros::Duration(0.5).sleep();
+    
     for(auto point: goal->area)
     {
-        project11_transformations::LatLongToMap ll2map;
-        ll2map.request.wgs84.position = point;
-        if(client.call(ll2map))
-        {
-            boost::geometry::append(m_op_region.outer(), BPoint(ll2map.response.map.point.x,ll2map.response.map.point.y));
-            std::cerr << ll2map.response.map.point.x << ", " << ll2map.response.map.point.y << std::endl;
-        }
+        geometry_msgs::Point p = m_transformations.wgs84_to_map(point);
+        boost::geometry::append(m_op_region.outer(), BPoint(p.x,p.y));
     }
+    
     PostSurveyRegion();
     
     //m_recording = true;
@@ -260,23 +286,25 @@ void SurveyPath::sendPath(XYSegList const &path)
 {
     path_follower::path_followerGoal goal;
     goal.speed = m_desired_speed;
-    std::cerr << "SurveyPath::sendPath: waiting for map_to_wgs84..." << std::endl;
-    ros::service::waitForService("map_to_wgs84");
-    std::cerr << "done!" << std::endl;
-    ros::ServiceClient client = m_node.serviceClient<project11_transformations::MapToLatLong>("map_to_wgs84");
     
+    while (!m_transformations.haveOrigin())
+    {
+        std::cerr << "SurveyPath::sendPath waiting for origin..." << std::endl;
+        ros::Duration(0.5).sleep();
+    }
+
     for(int i = 0; i < path.size(); i++)
     {
-        project11_transformations::MapToLatLong map2ll;
-        map2ll.request.map.point.x = path.get_vx(i);
-        map2ll.request.map.point.y = path.get_vy(i);
-        if(client.call(map2ll))
-        {
-            geographic_msgs::GeoPoseStamped gps;
-            gps.pose.position.latitude = map2ll.response.wgs84.position.latitude;
-            gps.pose.position.longitude = map2ll.response.wgs84.position.longitude;
-            goal.path.poses.push_back(gps);
-        }
+        geometry_msgs::Point point;
+        point.x = path.get_vx(i);
+        point.y = path.get_vy(i);
+        
+        auto position = m_transformations.map_to_wgs84(point);
+
+        geographic_msgs::GeoPoseStamped gps;
+        gps.pose.position.latitude = position.latitude;
+        gps.pose.position.longitude = position.longitude;
+        goal.path.poses.push_back(gps);
     }
     
     m_path_follower_client.sendGoal(goal, boost::bind(&SurveyPath::PathFollowerDoneCallback, this, _1, _2));

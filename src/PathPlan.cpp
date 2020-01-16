@@ -759,6 +759,8 @@ void PathPlan::ExtendToEdge(std::list<EPoint> &path_points, bool begin) {
   }
   std::pair<double, EPoint> intersection = FindNearestIntersect(extend_vec,
     starting_pt, m_op_region);
+  if(isnan(intersection.first))
+      return;
 
   double extend_max = 15 * m_last_line.IntervalDist();
   if (intersection.first < extend_max) {
@@ -799,6 +801,10 @@ std::pair<double, EPoint> PathPlan::FindNearestIntersect(EPoint ray_vector,
     }
   }
 
+  std::cerr << "PathPlan::FindNearestIntersect intersect_dist.size(): " << intersect_dist.size() << std::endl;
+  if(intersect_dist.empty())
+      return std::make_pair(NAN,EPoint());
+  
   // What should be done when equadistant from two?
   auto min_index = std::min_element(intersect_dist.begin(), intersect_dist.end())
     - intersect_dist.begin();

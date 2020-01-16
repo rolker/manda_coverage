@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   genmsg
   actionlib_msgs
   actionlib
+  geographic_visualization_msgs
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
