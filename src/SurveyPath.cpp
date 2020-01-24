@@ -69,7 +69,7 @@ void SurveyPath::pingCallback(const sensor_msgs::PointCloud::ConstPtr& inmsg)
         maxy = std::max(maxy,p.y);
     }
     m_swath_info["port"] = maxy;
-    m_swath_info["stbd"] = miny;
+    m_swath_info["stbd"] = -miny;
     Iterate();
 }
 
@@ -102,7 +102,6 @@ void SurveyPath::Iterate()
         m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
                                  m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
                                  m_swath_info["depth"]);
-        
         XYSegList points = m_swath_record.SwathOuterPts(m_swath_side);
         geographic_visualization_msgs::GeoVizItem vizItem;
         vizItem.id = "manda_coverage_swath";
@@ -172,7 +171,7 @@ void SurveyPath::goalCallback()
     m_desired_speed = goal->speed;
 
     m_op_region.clear();
-
+    m_survey_path.clear();
 
     while (!m_transformations.haveOrigin())
         ros::Duration(0.5).sleep();
@@ -181,9 +180,39 @@ void SurveyPath::goalCallback()
     {
         geometry_msgs::Point p = m_transformations.wgs84_to_map(point);
         boost::geometry::append(m_op_region.outer(), BPoint(p.x,p.y));
+        if(m_survey_path.size() < 2)
+            m_survey_path.add_vertex(p.x,p.y);
     }
+    boost::geometry::append(m_op_region.outer(),m_op_region.outer()[0]);
+
+    boost::geometry::validity_failure_type failure;
+    bool valid = boost::geometry::is_valid(m_op_region, failure);
+    if(failure == boost::geometry::failure_wrong_orientation)
+    {
+        // counter-clockwise, so first line is port
+        m_swath_side = BoatSide::Port;
+    }
+    else
+    {
+        // clockwise so stbd first
+        m_swath_side = BoatSide::Stbd;
+    }
+    m_swath_record.SetOutputSide(m_swath_side);
     
-    PostSurveyRegion();
+    if(!valid)
+    {
+        std::cerr << "Trying to correct invalid polygon" << std::endl;
+        boost::geometry::correct(m_op_region);
+    }
+
+    std::string reason;
+    valid = boost::geometry::is_valid(m_op_region, reason);
+    if(!valid)
+        std::cerr << "Invalid polygon: " << reason << std::endl;
+    
+
+    // Set the alignment lines and turn for the first line
+    DetermineStartAndTurn(m_survey_path);
     
     //m_recording = true;
     m_line_end = false;
@@ -192,34 +221,6 @@ void SurveyPath::goalCallback()
 void SurveyPath::preemptCallback()
 {
     m_action_server.setPreempted();
-}
-
-void SurveyPath::PostSurveyRegion()
-{
-    #if DEBUG
-    std::cout << "Posting Survey Area" << std::endl;
-    #endif
-
-    // Survey Region limits (currently only the outer ring)
-    auto ext_ring = m_op_region.outer();
-    XYSegList survey_limits;
-    for (auto poly_vertex : ext_ring)
-    {
-        survey_limits.add_vertex(poly_vertex.x(), poly_vertex.y());
-    }
-    //   Notify("VIEW_SEGLIST", survey_limits.get_spec_pts(2) + ",label=op_region," +
-    //     "label_color=red,edge_color=red,vertex_color=red,edge_size=2", MOOSTime());
-
-  // Set the first path of the survey
-    if (m_survey_path.size() < 2)
-    {
-        m_survey_path.clear();
-        m_survey_path.add_vertex(survey_limits.get_vx(0), survey_limits.get_vy(0));
-        m_survey_path.add_vertex(survey_limits.get_vx(1), survey_limits.get_vy(1));
-    }
-
-    // Set the alignment lines and turn for the first line
-    DetermineStartAndTurn(m_survey_path);
 }
 
 void SurveyPath::CreateNewPath()

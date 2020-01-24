@@ -10,16 +10,6 @@
 #ifndef SurveyPath_RecordSwath_HEADER
 #define SurveyPath_RecordSwath_HEADER
 
-//GEOS Headers
-//#include <geos.h>
-#include <geos/geom/PrecisionModel.h>
-#include <geos/geom/GeometryFactory.h>
-#include <geos/geom/Geometry.h>
-#include <geos/geom/Point.h>
-#include <geos/geom/Polygon.h>
-#include <geos/util/GEOSException.h>
-#include <geos/util/IllegalArgumentException.h>
-
 //MOOS Headers
 #include "XYPoint.h"
 #include "XYSegList.h"
@@ -100,8 +90,6 @@ public:
   XYSegList SwathOuterPts(BoatSide side);
 
   std::pair<XYPoint, XYPoint> LastOuterPoints();
-
-  bool SwathCoverage(BoatSide side, geos::geom::Polygon &coverage);
 
   /**
   * Gets a specific width along a recorded decimated swath
@@ -184,11 +172,6 @@ public:
   double m_acc_dist;
   SwathRecord m_previous_record;
   BoatSide m_output_side;
-
-  // Geometry Stuff
-  std::map<BoatSide, std::vector<geos::geom::Point*>> m_outer_points;
-  geos::geom::Polygon* m_coverage;
-  geos::geom::GeometryFactory* m_geom_factory;
 
 };
 

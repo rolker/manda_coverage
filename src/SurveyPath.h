@@ -20,7 +20,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <path_follower/path_followerAction.h>
 #include <thread>
-#include "XYPoint.h"
+//#include "XYPoint.h"
 #include "RecordSwath.h"
 #include "PathPlan.h"
 #include "project11_transformations/local_services.h"
@@ -36,7 +36,6 @@ protected:
     void Iterate();
 
     BoatSide AdvanceSide(BoatSide side);
-    void PostSurveyRegion();
     bool DetermineStartAndTurn(XYSegList& next_pts);
     void CreateNewPath();
     bool SwathOutsideRegion();
