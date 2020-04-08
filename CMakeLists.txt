@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   actionlib
   geographic_visualization_msgs
+  marine_msgs
+  path_follower
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
