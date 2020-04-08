@@ -7,10 +7,12 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   project11_transformations
   geographic_msgs
+  marine_msgs
   genmsg
   actionlib_msgs
   actionlib
   geographic_visualization_msgs
+  path_follower
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
