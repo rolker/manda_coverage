@@ -39,13 +39,13 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
 {
     m_swath_record.SetOutputSide(m_swath_side);
 
-    ros::Subscriber ping_sub = m_node.subscribe("/mbes_ping",10, &SurveyPath::pingCallback, this);
-    ros::Subscriber depth_sub = m_node.subscribe("/depth",10, &SurveyPath::depthCallback, this);
-    ros::Subscriber position_sub = m_node.subscribe("/position_map", 10, &SurveyPath::positionCallback, this);
-    ros::Subscriber heading_sub = m_node.subscribe("/heading", 10, &SurveyPath::headingCallback, this);
-    ros::Subscriber state_sub = m_node.subscribe("/project11/piloting_mode", 10, &SurveyPath::stateCallback, this);
+    ros::Subscriber ping_sub = m_node.subscribe("mbes_ping",10, &SurveyPath::pingCallback, this);
+    ros::Subscriber depth_sub = m_node.subscribe("depth",10, &SurveyPath::depthCallback, this);
+    ros::Subscriber position_sub = m_node.subscribe("position_map", 10, &SurveyPath::positionCallback, this);
+    ros::Subscriber heading_sub = m_node.subscribe("heading", 10, &SurveyPath::headingCallback, this);
+    ros::Subscriber state_sub = m_node.subscribe("project11/piloting_mode", 10, &SurveyPath::stateCallback, this);
     
-    m_display_pub = m_node.advertise<geographic_visualization_msgs::GeoVizItem>("/project11/display",5);
+    m_display_pub = m_node.advertise<geographic_visualization_msgs::GeoVizItem>("project11/display",5);
 
     m_action_server.registerGoalCallback(boost::bind(&SurveyPath::goalCallback, this));
     m_action_server.registerPreemptCallback(boost::bind(&SurveyPath::preemptCallback, this));
