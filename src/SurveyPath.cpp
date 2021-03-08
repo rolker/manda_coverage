@@ -33,7 +33,7 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_line_begin{false}, m_turn_reached{false}, m_recording{false},
   m_swath_record(10), m_state(idle), m_swath_side{BoatSide::Stbd},
    m_max_bend_angle{60},
-  m_execute_path_plan{false}, m_transformations(m_node),
+  m_execute_path_plan{false},
   m_action_server(m_node, "survey_area_action", false),
   m_path_follower_client(m_node, "path_follower_action"), m_autonomous_state(false)
 {
@@ -54,6 +54,7 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
     ROS_INFO("Waiting for path_follower action server to start.");
     m_path_follower_client.waitForServer();
     ROS_INFO("Action server started.");
+
 
     ros::spin();
 }
@@ -107,10 +108,9 @@ void SurveyPath::Iterate()
         vizItem.id = "manda_coverage_swath";
         if(points.size() > 0)
         {
-            while (!m_transformations.haveOrigin())
+            while (!m_transformations().canTransform(m_map_frame, "earth", ros::Time(0), ros::Duration(0.5)))
             {
                 std::cerr << "SurveyPath::Iterate waiting for origin..." << std::endl;
-                ros::Duration(0.5).sleep();
             }
 
             geographic_visualization_msgs::GeoVizPointList plist;
@@ -173,8 +173,8 @@ void SurveyPath::goalCallback()
     m_op_region.clear();
     m_survey_path.clear();
 
-    while (!m_transformations.haveOrigin())
-        ros::Duration(0.5).sleep();
+    while (!m_transformations.canTransform(m_map_frame))
+    {}
     
     for(auto point: goal->area)
     {
@@ -288,7 +288,7 @@ void SurveyPath::sendPath(XYSegList const &path)
     path_follower::path_followerGoal goal;
     goal.speed = m_desired_speed;
     
-    while (!m_transformations.haveOrigin())
+    while (!m_transformations.canTransform(m_map_frame))
     {
         std::cerr << "SurveyPath::sendPath waiting for origin..." << std::endl;
         ros::Duration(0.5).sleep();

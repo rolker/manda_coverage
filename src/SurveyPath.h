@@ -59,6 +59,7 @@ private: // Configuration variables
     bool m_remove_in_coverage;
     double m_swath_overlap;
     double m_max_bend_angle;
+    std::string m_map_frame;
 
 private: // State variables
     enum State {idle, transit, survey};
