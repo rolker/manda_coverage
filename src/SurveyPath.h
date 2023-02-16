@@ -14,7 +14,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <marine_msgs/NavEulerStamped.h>
+#include <project11_msgs/NavEulerStamped.h>
 #include "manda_coverage/manda_coverageAction.h"
 #include "actionlib/server/simple_action_server.h"
 #include <actionlib/client/simple_action_client.h>
@@ -45,7 +45,7 @@ protected:
     void pingCallback(const sensor_msgs::PointCloud::ConstPtr &inmsg);
     void depthCallback(const std_msgs::Float32::ConstPtr &inmsg);
     void positionCallback(const geometry_msgs::PoseStamped::ConstPtr &inmsg);
-    void headingCallback(const marine_msgs::NavEulerStamped::ConstPtr &inmsg);
+    void headingCallback(const project11_msgs::NavEulerStamped::ConstPtr &inmsg);
     void stateCallback(const std_msgs::String::ConstPtr &inmag);
 
     void sendPath(XYSegList const &);

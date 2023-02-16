@@ -15,7 +15,7 @@
   <depend>actionlib</depend>
   <depend>actionlib_msgs</depend>
   <depend>geographic_visualization_msgs</depend>
-  <depend>marine_msgs</depend>
+  <depend>project11_msgs</depend>
   <depend>geographic_msgs</depend>
   <depend>path_follower</depend>
 

@@ -6,7 +6,7 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   geographic_msgs
-  marine_msgs
+  project11_msgs
   genmsg
   actionlib_msgs
   actionlib

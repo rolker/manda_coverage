@@ -85,7 +85,7 @@ void SurveyPath::positionCallback(const geometry_msgs::PoseStamped::ConstPtr& in
     m_swath_info["y"] = inmsg->pose.position.y;
 }
 
-void SurveyPath::headingCallback(const marine_msgs::NavEulerStamped::ConstPtr& inmsg)
+void SurveyPath::headingCallback(const project11_msgs::NavEulerStamped::ConstPtr& inmsg)
 {
     m_swath_info["hdg"] = inmsg->orientation.heading;
 }
