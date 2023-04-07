@@ -759,7 +759,7 @@ void PathPlan::ExtendToEdge(std::list<EPoint> &path_points, bool begin) {
   }
   std::pair<double, EPoint> intersection = FindNearestIntersect(extend_vec,
     starting_pt, m_op_region);
-  if(isnan(intersection.first))
+  if(std::isnan(intersection.first))
       return;
 
   double extend_max = 15 * m_last_line.IntervalDist();
