@@ -34,8 +34,8 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
   m_swath_record(10), m_state(idle), m_swath_side{BoatSide::Stbd},
    m_max_bend_angle{60},
   m_execute_path_plan{false},
-  m_action_server(m_node, "survey_area_action", false),
-  m_path_follower_client(m_node, "path_follower_action"), m_autonomous_state(false)
+  m_action_server(m_node, "survey_area_action", false)
+  //m_path_follower_client(m_node, "path_follower_action"), m_autonomous_state(false)
 {
     m_swath_record.SetOutputSide(m_swath_side);
 
@@ -51,9 +51,9 @@ SurveyPath::SurveyPath() : m_first_swath_side{BoatSide::Stbd},
     m_action_server.registerPreemptCallback(boost::bind(&SurveyPath::preemptCallback, this));
     m_action_server.start();
     
-    ROS_INFO("Waiting for path_follower action server to start.");
-    m_path_follower_client.waitForServer();
-    ROS_INFO("Action server started.");
+    // ROS_INFO("Waiting for path_follower action server to start.");
+    // m_path_follower_client.waitForServer();
+    // ROS_INFO("Action server started.");
 
 
     ros::spin();
@@ -285,8 +285,8 @@ bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts)
 
 void SurveyPath::sendPath(XYSegList const &path)
 {
-    path_follower::path_followerGoal goal;
-    goal.speed = m_desired_speed;
+    //path_follower::path_followerGoal goal;
+    //goal.speed = m_desired_speed;
     
     while (!m_transformations.canTransform(m_map_frame))
     {
@@ -305,18 +305,18 @@ void SurveyPath::sendPath(XYSegList const &path)
         geographic_msgs::GeoPoseStamped gps;
         gps.pose.position.latitude = position.latitude;
         gps.pose.position.longitude = position.longitude;
-        goal.path.poses.push_back(gps);
+        //goal.path.poses.push_back(gps);
     }
     
-    m_path_follower_client.sendGoal(goal, boost::bind(&SurveyPath::PathFollowerDoneCallback, this, _1, _2));
+    //m_path_follower_client.sendGoal(goal, boost::bind(&SurveyPath::PathFollowerDoneCallback, this, _1, _2));
     m_line_end = false;
 }
 
-void SurveyPath::PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result)
-{
-    m_line_end = true;
-    Iterate();
-}
+// void SurveyPath::PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result)
+// {
+//     m_line_end = true;
+//     Iterate();
+// }
 
 BoatSide SurveyPath::AdvanceSide(BoatSide side)
 {

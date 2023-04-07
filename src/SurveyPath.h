@@ -18,7 +18,7 @@
 #include "manda_coverage/manda_coverageAction.h"
 #include "actionlib/server/simple_action_server.h"
 #include <actionlib/client/simple_action_client.h>
-#include <path_follower/path_followerAction.h>
+//#include <path_follower/path_followerAction.h>
 #include <thread>
 //#include "XYPoint.h"
 #include "RecordSwath.h"
@@ -49,7 +49,7 @@ protected:
     void stateCallback(const std_msgs::String::ConstPtr &inmag);
 
     void sendPath(XYSegList const &);
-    void PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result);
+//    void PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result);
 
 private: // Configuration variables
     BoatSide m_first_swath_side;
@@ -87,7 +87,7 @@ private: // State variables
     project11::Transformations m_transformations;
     actionlib::SimpleActionServer<manda_coverage::manda_coverageAction> m_action_server;
     
-    actionlib::SimpleActionClient<path_follower::path_followerAction> m_path_follower_client;
+    //actionlib::SimpleActionClient<path_follower::path_followerAction> m_path_follower_client;
     
     double m_desired_speed;
     bool m_autonomous_state;
