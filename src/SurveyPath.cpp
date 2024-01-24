@@ -108,7 +108,7 @@ void SurveyPath::Iterate()
         vizItem.id = "manda_coverage_swath";
         if(points.size() > 0)
         {
-            while (!m_transformations().canTransform(m_map_frame, "earth", ros::Time(0), ros::Duration(0.5)))
+            while (!m_transformations()->canTransform(m_map_frame, "earth", ros::Time(0), ros::Duration(0.5)))
             {
                 std::cerr << "SurveyPath::Iterate waiting for origin..." << std::endl;
             }

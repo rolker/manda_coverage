@@ -11,7 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   actionlib
   geographic_visualization_msgs
-  path_follower
+  project11
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
@@ -23,7 +23,7 @@ generate_messages(DEPENDENCIES actionlib_msgs geographic_msgs)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES asv_helm
-  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS roscpp project11
 #  DEPENDS system_lib
 )
 
