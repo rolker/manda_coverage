@@ -4,20 +4,19 @@ project(manda_coverage)
 add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  geographic_msgs
-  project11_msgs
-  genmsg
-  actionlib_msgs
   actionlib
-  geographic_visualization_msgs
+  actionlib_msgs
+  genmsg
+  nav_msgs
   project11
+  roscpp
+  sensor_msgs
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
 
 add_action_files(DIRECTORY action FILES manda_coverage.action)
-generate_messages(DEPENDENCIES actionlib_msgs geographic_msgs)
+generate_messages(DEPENDENCIES actionlib_msgs geometry_msgs nav_msgs)
 
 
 catkin_package(

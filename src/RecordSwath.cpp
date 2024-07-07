@@ -11,7 +11,6 @@
 #include "AngleUtils.h"
 #include "GeomUtils.h"
 
-#define DEBUG false
 #define TURN_THRESHOLD 20
 //---------------------------------------------------------
 // Constructor
@@ -42,15 +41,11 @@ bool RecordSwath::AddRecord(double swath_stbd, double swath_port, double loc_x,
     if (m_has_records)
     {
         m_acc_dist += distPointToPoint(m_last_x, m_last_y, loc_x, loc_y);
-        #if DEBUG
-        std::cout << "Accumulated distance: " + std::to_string(m_acc_dist) + "\n";
-        #endif
+        //std::cout << "Accumulated distance: " + std::to_string(m_acc_dist) + "\n";
 
         if (m_acc_dist >= m_interval)
         {
-            #if DEBUG
-            std::cout << "Running MinInterval()\n";
-            #endif
+            //std::cout << "Running MinInterval()\n";
             m_acc_dist = 0;
             MinInterval();
         } 
@@ -61,9 +56,7 @@ bool RecordSwath::AddRecord(double swath_stbd, double swath_port, double loc_x,
             if ((turn > TURN_THRESHOLD && m_output_side == BoatSide::Port)
                     || (turn < -TURN_THRESHOLD && m_output_side == BoatSide::Stbd))
             {
-                #if DEBUG
-                std::cout << "Adding Turn Based Point\n";
-                #endif
+                //std::cout << "Adding Turn Based Point\n";
                 m_min_record.push_back(record);
                 m_interval_record.clear();
                 m_interval_swath.clear();
@@ -107,9 +100,7 @@ void RecordSwath::MinInterval()
         // Add the first point if this is the first interval in the record
         if (m_min_record.size() == 0 && min_index != 0)
         {
-            #if DEBUG
-            std::cout << "Saving First record of line\n";
-            #endif
+            //std::cout << "Saving First record of line\n";
             m_min_record.push_back(m_interval_record[0]);
         }
         m_min_record.push_back(m_interval_record[min_index]);
@@ -127,10 +118,7 @@ bool RecordSwath::SaveLast()
         SwathRecord last_rec = m_interval_record.back();
         if (last_min.loc_x != last_rec.loc_x || last_min.loc_y != last_rec.loc_y)
         {
-            #if DEBUG
-            std::cout << "Saving last record of line, (" << last_rec.loc_x << ", "
-                << last_rec.loc_y << ")\n";
-            #endif
+            //std::cout << "Saving last record of line, (" << last_rec.loc_x << ", " << last_rec.loc_y << ")\n";
             m_min_record.push_back(last_rec);
         }
         return true;
@@ -154,10 +142,8 @@ XYSegList RecordSwath::SwathOuterPts(BoatSide side)
     std::list<SwathRecord>::iterator record;
     for (record = m_min_record.begin(); record != m_min_record.end(); record++)
     {
-        // #if DEBUG
         // std::cout << "Getting swath outer point for " << record->loc_x
         //   << ", "  << record->loc_y << "\n";
-        // #endif
         XYPoint outer_pt = OuterPoint(*record, side);
         points.add_vertex(outer_pt);
     }

@@ -9,16 +9,17 @@
 #define SurveyPath_HEADER
 
 #include <ros/ros.h>
-#include <geographic_msgs/GeoPath.h>
-#include <sensor_msgs/PointCloud.h>
+
+#include <sensor_msgs/PointCloud2.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/String.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <project11_msgs/NavEulerStamped.h>
+#include <nav_msgs/Odometry.h>
+
 #include "manda_coverage/manda_coverageAction.h"
 #include "actionlib/server/simple_action_server.h"
 #include <actionlib/client/simple_action_client.h>
-//#include <path_follower/path_followerAction.h>
+
 #include <thread>
 //#include "XYPoint.h"
 #include "RecordSwath.h"
@@ -42,35 +43,32 @@ protected:
     
     void goalCallback();
     void preemptCallback();
-    void pingCallback(const sensor_msgs::PointCloud::ConstPtr &inmsg);
-    void depthCallback(const std_msgs::Float32::ConstPtr &inmsg);
-    void positionCallback(const geometry_msgs::PoseStamped::ConstPtr &inmsg);
-    void headingCallback(const project11_msgs::NavEulerStamped::ConstPtr &inmsg);
-    void stateCallback(const std_msgs::String::ConstPtr &inmag);
+
+    void pingCallback(const sensor_msgs::PointCloud2::ConstPtr &inmsg);
+    void odometryCallback(const nav_msgs::Odometry::ConstPtr &inmsg);
 
     void sendPath(XYSegList const &);
-//    void PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result);
 
 private: // Configuration variables
-    BoatSide m_first_swath_side;
-    double m_swath_interval;
-    double m_alignment_line_len;
-    double m_turn_pt_offset;
-    bool m_remove_in_coverage;
-    double m_swath_overlap;
-    double m_max_bend_angle;
+    BoatSide m_first_swath_side = BoatSide::Stbd;
+    double m_swath_interval = 10;
+    double m_alignment_line_len = 10;
+    double m_turn_pt_offset = 15;
+    bool m_remove_in_coverage = false;
+    double m_swath_overlap = 0.2;
+    double m_max_bend_angle = 60;
     std::string m_map_frame;
 
 private: // State variables
     enum State {idle, transit, survey};
-    State m_state;
+    State m_state = State::idle;
      
     //BoatSide m_next_swath_side;
-    BoatSide m_swath_side;
-    bool m_line_end;
-    bool m_line_begin;
-    bool m_turn_reached;
-    bool m_recording;
+    BoatSide m_swath_side = BoatSide::Stbd;
+    bool m_line_end = false;
+    bool m_line_begin = false;
+    bool m_turn_reached = false;
+    bool m_recording = false;
     BPolygon m_op_region;
     RecordSwath m_swath_record;
     std::map<std::string, double> m_swath_info;
@@ -78,20 +76,11 @@ private: // State variables
     XYSegList m_survey_path;
     XYSegList m_raw_survey_path;
     XYPoint m_turn_pt;
-    bool m_execute_path_plan;
     XYSegList m_alignment_line;
 
     ros::NodeHandle m_node;
-    ros::Publisher m_display_pub;
 
-    project11::Transformations m_transformations;
     actionlib::SimpleActionServer<manda_coverage::manda_coverageAction> m_action_server;
-    
-    //actionlib::SimpleActionClient<path_follower::path_followerAction> m_path_follower_client;
-    
-    double m_desired_speed;
-    bool m_autonomous_state;
-
 };
 
 #endif

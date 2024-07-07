@@ -12,7 +12,9 @@ int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "manda_coverage");
 
-    SurveyPath SurveyPath;
+    SurveyPath survey_path;
+
+    ros::spin();
   
     return(0);
 }
