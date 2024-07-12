@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   genmsg
   nav_msgs
   project11
+  project11_nav_msgs
   roscpp
   sensor_msgs
 )

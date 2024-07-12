@@ -16,7 +16,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
 
-#include "manda_coverage/manda_coverageAction.h"
+//#include "manda_coverage/manda_coverageAction.h"
+#include "project11_nav_msgs/multibeam_coverageAction.h"
 #include "actionlib/server/simple_action_server.h"
 #include <actionlib/client/simple_action_client.h>
 
@@ -80,7 +81,7 @@ private: // State variables
 
     ros::NodeHandle m_node;
 
-    actionlib::SimpleActionServer<manda_coverage::manda_coverageAction> m_action_server;
+    actionlib::SimpleActionServer<project11_nav_msgs::multibeam_coverageAction> m_action_server;
 };
 
 #endif

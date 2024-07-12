@@ -259,7 +259,7 @@ bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts)
 
 void SurveyPath::sendPath(XYSegList const &path)
 {
-    manda_coverage::manda_coverageFeedback feedback;
+    project11_nav_msgs::multibeam_coverageFeedback feedback;
     for(int i = 0; i < path.size(); i++)
     {
         geometry_msgs::PoseStamped pose;

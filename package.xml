@@ -15,6 +15,7 @@
   <depend>actionlib_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>project11</depend>
+  <depend>project11_nav_msgs</depend>
   <depend>roscpp</depend>
   <depend>sensor_msgs</depend>
 
