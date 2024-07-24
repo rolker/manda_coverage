@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   project11_nav_msgs
   roscpp
   sensor_msgs
+  visualization_msgs
 )
 
 find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
@@ -23,7 +24,7 @@ generate_messages(DEPENDENCIES actionlib_msgs geometry_msgs nav_msgs)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES asv_helm
-  CATKIN_DEPENDS roscpp project11
+  CATKIN_DEPENDS roscpp project11 visualization_msgs
 #  DEPENDS system_lib
 )
 

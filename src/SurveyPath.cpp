@@ -17,6 +17,7 @@
 #include <boost/algorithm/string.hpp>
 #include "sensor_msgs/point_cloud_conversion.h"
 #include "ros/ros.h"
+#include "visualization_msgs/MarkerArray.h"
 
 //---------------------------------------------------------
 // Constructor
@@ -27,7 +28,11 @@ SurveyPath::SurveyPath() :
 {
     m_swath_record.SetOutputSide(m_swath_side);
 
-    ros::Subscriber ping_sub = m_node.subscribe("soundings",10, &SurveyPath::pingCallback, this);
+    std::string soundings_topic = ros::param::param<std::string>("~soundings_topic", "soundings");
+    m_ping_subscription = m_node.subscribe(soundings_topic, 10, &SurveyPath::pingCallback, this);
+    m_odometry_subscription = m_node.subscribe("odom", 10, &SurveyPath::odometryCallback, this);
+    m_navigation_state_subscription = m_node.subscribe("navigator/navigation_state", 10, &SurveyPath::navigationStateCallback, this);
+    m_display_publisher = ros::NodeHandle("~").advertise<visualization_msgs::Marker>("display", 10);
 
     m_action_server.registerGoalCallback(boost::bind(&SurveyPath::goalCallback, this));
     m_action_server.registerPreemptCallback(boost::bind(&SurveyPath::preemptCallback, this));
@@ -48,8 +53,9 @@ void SurveyPath::pingCallback(const sensor_msgs::PointCloud2::ConstPtr& inmsg)
         miny = std::min(miny,p.y);
         maxy = std::max(maxy,p.y);
     }
-    m_swath_info["port"] = -miny;
-    m_swath_info["stbd"] = -maxy;
+    // TODO apply TF transform, following assumes standard MBES install with z down, x forward and y port
+    m_swath_info["port"] = maxy;
+    m_swath_info["stbd"] = -miny;
 
     // crude approximation of nader depth
     m_swath_info["depth"] = pc.points[pc.points.size()/2].z;
@@ -61,15 +67,27 @@ void SurveyPath::odometryCallback(const nav_msgs::Odometry::ConstPtr &inmsg)
 {
     m_swath_info["x"] = inmsg->pose.pose.position.x;
     m_swath_info["y"] = inmsg->pose.pose.position.y;
-    m_swath_info["hdg"] = project11::quaternionToHeadingRadians(inmsg->pose.pose.orientation);
+    m_swath_info["hdg"] = project11::quaternionToHeadingDegrees(inmsg->pose.pose.orientation);
+}
 
-    // TODO: detect line end, maybe need to keep track of current line
-
-    // void SurveyPath::PathFollowerDoneCallback(actionlib::SimpleClientGoalState const &state, path_follower::path_followerResult::ConstPtr const &result)
-// {
-//     m_line_end = true;
-//     Iterate();
-// }
+void SurveyPath::navigationStateCallback(const std_msgs::String::ConstPtr &inmsg)
+{
+    switch(m_state)
+    {
+        case survey:
+            if(inmsg->data != "survey_line")
+            {
+                m_line_end = true;
+                Iterate();
+            }
+            break;
+        case transit:
+            if(inmsg->data == "survey_line")
+            {
+                m_line_end = true;
+                Iterate();
+            }
+    }
 
 }
 
@@ -81,47 +99,51 @@ void SurveyPath::Iterate()
                                  m_swath_info["x"], m_swath_info["y"], m_swath_info["hdg"],
                                  m_swath_info["depth"]);
 
-        // TODO: replace visualization with some output (point arrays?) than can optionally visualized
-        // XYSegList points = m_swath_record.SwathOuterPts(m_swath_side);
-        // geographic_visualization_msgs::GeoVizItem vizItem;
-        // vizItem.id = "manda_coverage_swath";
-        // if(points.size() > 0)
-        // {
-        //     while (!m_transformations()->canTransform(m_map_frame, "earth", ros::Time(0), ros::Duration(0.5)))
-        //     {
-        //         std::cerr << "SurveyPath::Iterate waiting for origin..." << std::endl;
-        //     }
 
-        //     geographic_visualization_msgs::GeoVizPointList plist;
-        //     plist.size = 2;
-        //     for(int i = 0; i < points.size(); i++)
-        //     {
-        //         geometry_msgs::Point p;
-        //         p.x = points.get_vx(i);
-        //         p.y = points.get_vy(i);
-                
-        //         geographic_msgs::GeoPoint gp = m_transformations.map_to_wgs84(p);
-        //         plist.points.push_back(gp);
-        //     }
-        //     plist.color.r = .3;
-        //     plist.color.g = .4;
-        //     plist.color.b = .5;
-        //     plist.color.a = .5;
-        //     vizItem.lines.push_back(plist);
-        // }
-        // m_display_pub.publish(vizItem);
+        XYSegList points = m_swath_record.SwathOuterPts(m_swath_side);
+        if(points.size() > 0)
+        {
+            visualization_msgs::Marker marker;
+            marker.header.frame_id = m_map_frame;
+            marker.header.stamp = ros::Time::now();
+            marker.ns = "manda_coverage_swath";
+            marker.id = 0;
+            marker.type = visualization_msgs::Marker::LINE_STRIP;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.scale.x = 1.0;
+            marker.scale.y = 1.0;
+            marker.scale.z = 1.0;
+
+            for(int i = 0; i < points.size(); i++)
+            {
+                geometry_msgs::Point p;
+                p.x = points.get_vx(i);
+                p.y = points.get_vy(i);
+                marker.points.push_back(p);
+            }
+            marker.color.r = .3;
+            marker.color.g = .4;
+            marker.color.b = .5;
+            marker.color.a = .5;
+
+            marker.lifetime = ros::Duration(5.0);
+
+            m_display_publisher.publish(marker);
+        }
     }
     if (m_line_end) 
     {
         if(m_state == transit)
         {
+            ROS_INFO_STREAM("End of line, transit -> survey");
             m_line_end = false;
-            sendPath(m_survey_path);
+            //sendPath(m_survey_path);
             m_state = survey;
             m_recording = true;
         }
         else if(m_state == survey)
         {
+            ROS_INFO_STREAM("End of line, survey -> transit");
             m_recording = false;
             CreateNewPath();
             m_line_end = false;
@@ -145,8 +167,13 @@ bool SurveyPath::SwathOutsideRegion()
 
 void SurveyPath::goalCallback()
 {
+
+    ROS_INFO_STREAM("Goal received");
+
     auto goal = m_action_server.acceptNewGoal();
     
+    m_map_frame = goal->survey_area.header.frame_id;
+    ROS_INFO_STREAM("map frame: " << m_map_frame);
 
     m_op_region.clear();
     m_survey_path.clear();
@@ -165,11 +192,13 @@ void SurveyPath::goalCallback()
     {
         // counter-clockwise, so first line is port
         m_swath_side = BoatSide::Port;
+        ROS_INFO_STREAM("Port side");
     }
     else
     {
         // clockwise so stbd first
         m_swath_side = BoatSide::Stbd;
+        ROS_INFO_STREAM("Starboard side");
     }
     m_swath_record.SetOutputSide(m_swath_side);
     
@@ -183,7 +212,14 @@ void SurveyPath::goalCallback()
     valid = boost::geometry::is_valid(m_op_region, reason);
     if(!valid)
         ROS_WARN_STREAM("Invalid polygon: " << reason);
+
+    ROS_INFO_STREAM("Goal received: polygon with " << m_op_region.outer().size() << " vertices");
+
+    ROS_INFO_STREAM("Initial line");
+    for(int i = 0; i < m_survey_path.size(); i++)
+        ROS_INFO_STREAM("    point: " << m_survey_path.get_vx(i) << ", " << m_survey_path.get_vy(i));
     
+    m_swath_record.ResetLine();
 
     // Set the alignment lines and turn for the first line
     DetermineStartAndTurn(m_survey_path);
@@ -209,65 +245,46 @@ void SurveyPath::CreateNewPath()
         m_survey_path = planner.GenerateNextPath();
         if (m_survey_path.size() > 2) 
         {
-            m_posted_path_str = m_survey_path.get_spec_pts(2);  //2 decimal precision
             DetermineStartAndTurn(m_survey_path);
         }
         else 
         {
+            m_state = idle;
+            project11_nav_msgs::multibeam_coverageResult result;
+            result.success = true;
+            m_action_server.setSucceeded(result);
         }
         m_swath_side = AdvanceSide(m_swath_side);
         m_swath_record.SetOutputSide(m_swath_side);
         m_swath_record.ResetLine();
-        m_raw_survey_path = planner.GetRawPath();
     }
 }
 
 bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts) 
 {
-    std::size_t pts_len = next_pts.size();
-
-  // The turn point, extended from the end of the path
-    auto end_x = next_pts.get_vx(pts_len-1);
-    auto end_y = next_pts.get_vy(pts_len-1);
-    EPoint end_heading(end_x - next_pts.get_vx(pts_len-2),
-                       end_y - next_pts.get_vy(pts_len-2));
-    end_heading.normalize();
-    end_heading *= m_turn_pt_offset;
-    m_turn_pt = XYPoint(end_x + end_heading.x(), end_y + end_heading.y());
-    m_turn_pt.set_spec_digits(2);
-
-    // The alignment line, added to the beginning of the path
-    EPoint start_heading(next_pts.get_vx(0) - next_pts.get_vx(1),
-                         next_pts.get_vy(0) - next_pts.get_vy(1));
-    start_heading.normalize();
-    start_heading *= m_alignment_line_len;
-    m_alignment_line.clear();
-    m_alignment_line.add_vertex(next_pts.get_vx(0) + start_heading.x(),
-                                next_pts.get_vy(0) + start_heading.y());
-    m_alignment_line.add_vertex(next_pts.get_vx(0), next_pts.get_vy(0));
-
-    XYSegList to_start_path;
-    to_start_path.add_vertex( m_swath_info["x"], m_swath_info["y"]);
-    to_start_path.add_vertex(m_alignment_line.get_vx(0), m_alignment_line.get_vy(0));
-  
-    //SetMOOSVar("ToStartPath", "points=" + to_start_path.get_spec_pts(2), MOOSTime());
-    sendPath(to_start_path);
+    sendPath(next_pts);
     m_state = transit;
+    m_recording = false;
 
     return true;
 }
 
 void SurveyPath::sendPath(XYSegList const &path)
 {
+    ROS_INFO_STREAM("Sending path:");
     project11_nav_msgs::multibeam_coverageFeedback feedback;
     for(int i = 0; i < path.size(); i++)
     {
         geometry_msgs::PoseStamped pose;
+        pose.header.frame_id = m_map_frame;
         pose.pose.position.x = path.get_vx(i);
         pose.pose.position.y = path.get_vy(i);
 
         feedback.current_line.poses.push_back(pose);
+        ROS_INFO_STREAM("  Point: " << pose.pose.position);
     }
+    m_line_number += 1;
+    feedback.line_number = m_line_number;
 
     m_action_server.publishFeedback(feedback);
     
@@ -277,15 +294,14 @@ void SurveyPath::sendPath(XYSegList const &path)
 
 BoatSide SurveyPath::AdvanceSide(BoatSide side)
 {
-    //std::cerr << "SurveyPath::AdvanceSide: ";
     if (side == BoatSide::Stbd)
     {
-        //std::cerr << "stbd to port" << std::endl;
+        ROS_INFO_STREAM("Starboard to Port");
         return BoatSide::Port;
     } 
     else if (side == BoatSide::Port) 
     {
-        //std::cerr << "port to stbd" << std::endl;
+        ROS_INFO_STREAM("Port to Starboard");
         return BoatSide::Stbd;
     }
     return BoatSide::Unknown;

@@ -28,6 +28,7 @@
 #include "project11/tf2_utils.h"
 
 
+
 class SurveyPath
 {
 public:
@@ -47,18 +48,18 @@ protected:
 
     void pingCallback(const sensor_msgs::PointCloud2::ConstPtr &inmsg);
     void odometryCallback(const nav_msgs::Odometry::ConstPtr &inmsg);
+    void navigationStateCallback(const std_msgs::String::ConstPtr &inmsg);
 
     void sendPath(XYSegList const &);
 
 private: // Configuration variables
     BoatSide m_first_swath_side = BoatSide::Stbd;
     double m_swath_interval = 10;
-    double m_alignment_line_len = 10;
-    double m_turn_pt_offset = 15;
     bool m_remove_in_coverage = false;
     double m_swath_overlap = 0.2;
     double m_max_bend_angle = 60;
     std::string m_map_frame;
+    int m_line_number = 0;
 
 private: // State variables
     enum State {idle, transit, survey};
@@ -67,21 +68,20 @@ private: // State variables
     //BoatSide m_next_swath_side;
     BoatSide m_swath_side = BoatSide::Stbd;
     bool m_line_end = false;
-    bool m_line_begin = false;
-    bool m_turn_reached = false;
     bool m_recording = false;
     BPolygon m_op_region;
     RecordSwath m_swath_record;
     std::map<std::string, double> m_swath_info;
-    std::string m_posted_path_str;
     XYSegList m_survey_path;
-    XYSegList m_raw_survey_path;
-    XYPoint m_turn_pt;
-    XYSegList m_alignment_line;
 
     ros::NodeHandle m_node;
 
     actionlib::SimpleActionServer<project11_nav_msgs::multibeam_coverageAction> m_action_server;
+    ros::Subscriber m_ping_subscription;
+    ros::Subscriber m_odometry_subscription;
+    ros::Subscriber m_navigation_state_subscription;
+
+    ros::Publisher m_display_publisher;
 };
 
 #endif
