@@ -5,17 +5,16 @@
 /*    DATE: December 29th, 1963                             */
 /************************************************************/
 
-#include "ros/ros.h"
 #include "SurveyPath.h"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char *argv[])
 {
-    ros::init(argc, argv, "manda_coverage");
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<SurveyPath>();
 
-    SurveyPath survey_path;
-
-    ros::spin();
-  
-    return(0);
+  rclcpp::spin(node->get_node_base_interface());  
+  rclcpp::shutdown();
+  return 0;
 }
 

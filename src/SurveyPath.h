@@ -8,80 +8,82 @@
 #ifndef SurveyPath_HEADER
 #define SurveyPath_HEADER
 
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/simple_action_server.hpp"
+#include "nav_2d_utils/odom_subscriber.hpp"
 
-#include <sensor_msgs/PointCloud2.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/String.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <nav_msgs/Odometry.h>
+#include "project11_nav_msgs/action/multibeam_coverage.hpp"
 
-//#include "manda_coverage/manda_coverageAction.h"
-#include "project11_nav_msgs/multibeam_coverageAction.h"
-#include "actionlib/server/simple_action_server.h"
-#include <actionlib/client/simple_action_client.h>
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 #include <thread>
-//#include "XYPoint.h"
 #include "RecordSwath.h"
 #include "PathPlan.h"
-#include "project11/tf2_utils.h"
+//#include "project11/tf2_utils.h"
 
 
 
-class SurveyPath
+class SurveyPath: public nav2_util::LifecycleNode
 {
 public:
-    SurveyPath();
-    ~SurveyPath() {};
+  using ActionServer = nav2_util::SimpleActionServer<project11_nav_msgs::action::MultibeamCoverage>;
+
+  explicit SurveyPath(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+  ~SurveyPath() = default;
 
 protected:
-    void Iterate();
+  void Iterate();
 
-    BoatSide AdvanceSide(BoatSide side);
-    bool DetermineStartAndTurn(XYSegList& next_pts);
-    void CreateNewPath();
-    bool SwathOutsideRegion();
-    
-    void goalCallback();
-    void preemptCallback();
+  BoatSide AdvanceSide(BoatSide side);
+  bool DetermineStartAndTurn(XYSegList& next_pts);
+  void CreateNewPath();
+  bool SwathOutsideRegion();
+  
+  void goalCallback();
 
-    void pingCallback(const sensor_msgs::PointCloud2::ConstPtr &inmsg);
-    void odometryCallback(const nav_msgs::Odometry::ConstPtr &inmsg);
-    void navigationStateCallback(const std_msgs::String::ConstPtr &inmsg);
+  void pingCallback(const sensor_msgs::msg::PointCloud2::UniquePtr &inmsg);
+  void navigationStateCallback(const std_msgs::msg::String::UniquePtr &inmsg);
 
-    void sendPath(XYSegList const &);
+  void sendPath(XYSegList const &);
 
+  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  
 private: // Configuration variables
-    BoatSide m_first_swath_side = BoatSide::Stbd;
-    double m_swath_interval = 10;
-    bool m_remove_in_coverage = false;
-    double m_swath_overlap = 0.2;
-    double m_max_bend_angle = 60;
-    std::string m_map_frame;
-    int m_line_number = 0;
+  BoatSide m_first_swath_side = BoatSide::Stbd;
+  double m_swath_interval = 10;
+  bool m_remove_in_coverage = false;
+  double m_swath_overlap = 0.2;
+  double m_max_bend_angle = 60;
+  std::string m_map_frame;
+  int m_line_number = 0;
 
 private: // State variables
-    enum State {idle, transit, survey};
-    State m_state = State::idle;
-     
-    //BoatSide m_next_swath_side;
-    BoatSide m_swath_side = BoatSide::Stbd;
-    bool m_line_end = false;
-    bool m_recording = false;
-    BPolygon m_op_region;
-    RecordSwath m_swath_record;
-    std::map<std::string, double> m_swath_info;
-    XYSegList m_survey_path;
+  enum State {idle, transit, survey};
+  State m_state = State::idle;
+      
+  //BoatSide m_next_swath_side;
+  BoatSide m_swath_side = BoatSide::Stbd;
+  bool m_line_end = false;
+  bool m_recording = false;
+  BPolygon m_op_region;
+  RecordSwath m_swath_record;
+  std::map<std::string, double> m_swath_info;
+  XYSegList m_survey_path;
 
-    ros::NodeHandle m_node;
+  std::unique_ptr<ActionServer> action_server_;
 
-    actionlib::SimpleActionServer<project11_nav_msgs::multibeam_coverageAction> m_action_server;
-    ros::Subscriber m_ping_subscription;
-    ros::Subscriber m_odometry_subscription;
-    ros::Subscriber m_navigation_state_subscription;
+  std::unique_ptr<nav_2d_utils::OdomSubscriber> odom_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr m_ping_subscription;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr m_navigation_state_subscription;
 
-    ros::Publisher m_display_publisher;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr m_display_publisher;
 };
 
 #endif

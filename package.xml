@@ -4,21 +4,27 @@
   <version>0.0.0</version>
   <description>The manda_coverage package</description>
 
-  <author>Damien Manada</author>
+  <author>Damian Manada</author>
   
   <maintainer email="roland@ccom.unh.edu">Roland Arsenault</maintainer>
 
   <license>MIT</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
-  <depend>actionlib</depend>
-  <depend>actionlib_msgs</depend>
+  <buildtool_depend>ament_cmake_ros</buildtool_depend>
+  <buildtool_depend>eigen3_cmake_module</buildtool_depend>
+  <build_depend>eigen</build_depend>
+
   <depend>nav_msgs</depend>
+  <depend>nav_2d_utils</depend>
+  <depend>nav2_util</depend>
   <depend>project11</depend>
   <depend>project11_nav_msgs</depend>
-  <depend>roscpp</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>sensor_msgs</depend>
   <depend>visualization_msgs</depend>
   <export>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

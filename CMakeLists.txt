@@ -1,40 +1,56 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.14.4)
 project(manda_coverage)
 
-set(CMAKE_CXX_STANDARD 14)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-find_package(catkin REQUIRED COMPONENTS
-  actionlib
-  actionlib_msgs
-  genmsg
-  nav_msgs
-  project11
-  project11_nav_msgs
-  roscpp
-  sensor_msgs
-  visualization_msgs
-)
+find_package(ament_cmake REQUIRED)
+find_package(nav_2d_utils REQUIRED)
+find_package(nav2_util REQUIRED)
+find_package(project11_nav_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
-find_path(EIGEN_INCLUDES Eigen/Core /usr/include/eigen3)
+find_package(eigen3_cmake_module REQUIRED)
+find_package(Eigen3)
 
-add_action_files(DIRECTORY action FILES manda_coverage.action)
-generate_messages(DEPENDENCIES actionlib_msgs geometry_msgs nav_msgs)
+# find_package(catkin REQUIRED COMPONENTS
+#   actionlib
+#   actionlib_msgs
+#   genmsg
+#   nav_msgs
+#   project11
+#   project11_nav_msgs
+#   roscpp
+#   sensor_msgs
+#   visualization_msgs
+# )
 
 
-catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES asv_helm
-  CATKIN_DEPENDS roscpp project11 visualization_msgs
-#  DEPENDS system_lib
-)
 
-include_directories(
-# include
-  src/lib_geometry/
-  src/lib_mbutil/
-  ${catkin_INCLUDE_DIRS}
-  ${EIGEN_INCLUDES}
-)
+
+# catkin_package(
+# #  INCLUDE_DIRS include
+# #  LIBRARIES asv_helm
+#   CATKIN_DEPENDS roscpp project11 visualization_msgs
+# #  DEPENDS system_lib
+# )
+
+# include_directories(
+# # include
+#   src/lib_geometry/
+#   src/lib_mbutil/
+#   ${catkin_INCLUDE_DIRS}
+#   ${EIGEN_INCLUDES}
+# )
 
 set(NODE_SOURCES 
     src/main.cpp
@@ -59,15 +75,40 @@ set(NODE_SOURCES
 
 add_executable(${PROJECT_NAME}_node ${NODE_SOURCES})
 
-add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_include_directories(${PROJECT_NAME}_node PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib_geometry>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib_mbutil>
+)
 
 target_link_libraries(${PROJECT_NAME}_node
-    ${catkin_LIBRARIES}
+  ${project11_nav_msgs_TARGETS}
+  rclcpp::rclcpp
+  ${sensor_msgs_TARGETS}
+  ${visualization_msgs_TARGETS}
 )
 
-install(TARGETS ${PROJECT_NAME}_node
-   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ament_target_dependencies(${PROJECT_NAME}_node
+  Eigen3
+  nav_2d_utils
+  nav2_util
 )
+
+install (TARGETS ${PROJECT_NAME}_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()
+
+# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+# target_link_libraries(${PROJECT_NAME}_node
+#     ${catkin_LIBRARIES}
+# )
+
+# install(TARGETS ${PROJECT_NAME}_node
+#    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
