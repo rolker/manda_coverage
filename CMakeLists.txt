@@ -22,35 +22,6 @@ find_package(visualization_msgs REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3)
 
-# find_package(catkin REQUIRED COMPONENTS
-#   actionlib
-#   actionlib_msgs
-#   genmsg
-#   nav_msgs
-#   project11
-#   project11_nav_msgs
-#   roscpp
-#   sensor_msgs
-#   visualization_msgs
-# )
-
-
-
-
-# catkin_package(
-# #  INCLUDE_DIRS include
-# #  LIBRARIES asv_helm
-#   CATKIN_DEPENDS roscpp project11 visualization_msgs
-# #  DEPENDS system_lib
-# )
-
-# include_directories(
-# # include
-#   src/lib_geometry/
-#   src/lib_mbutil/
-#   ${catkin_INCLUDE_DIRS}
-#   ${EIGEN_INCLUDES}
-# )
 
 set(NODE_SOURCES 
     src/main.cpp
@@ -98,17 +69,9 @@ install (TARGETS ${PROJECT_NAME}_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
+#install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+
+
 ament_package()
-
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-# target_link_libraries(${PROJECT_NAME}_node
-#     ${catkin_LIBRARIES}
-# )
-
-# install(TARGETS ${PROJECT_NAME}_node
-#    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
 

@@ -45,7 +45,7 @@ SurveyPath::on_configure(const rclcpp_lifecycle::State & /*state*/)
   std::string soundings_topic = get_parameter("soundings_topic").as_string();
 
   m_ping_subscription = create_subscription<sensor_msgs::msg::PointCloud2>(
-    soundings_topic, 10, std::bind(&SurveyPath::pingCallback, this, std::placeholders::_1));
+    soundings_topic, rclcpp::SensorDataQoS(), std::bind(&SurveyPath::pingCallback, this, std::placeholders::_1));
 
   odom_sub_ = std::make_unique<nav_2d_utils::OdomSubscriber>(node);
 
@@ -247,7 +247,6 @@ bool SurveyPath::SwathOutsideRegion()
 void SurveyPath::goalCallback()
 {
   RCLCPP_INFO_STREAM(get_logger(), "Goal received");
-
   auto goal = action_server_->get_current_goal();
     
   m_map_frame = goal->survey_area.header.frame_id;
@@ -304,6 +303,26 @@ void SurveyPath::goalCallback()
     
   //m_recording = true;
   m_line_end = false;
+
+  rclcpp::Rate r(100);
+  while(rclcpp::ok())
+  {
+    if (action_server_ == nullptr || !action_server_->is_server_active()) {
+        RCLCPP_DEBUG(get_logger(), "Action server unavailable or inactive. Stopping.");
+        return;
+    }
+
+    if (action_server_->is_cancel_requested())
+    {
+      action_server_->terminate_all();
+      RCLCPP_INFO(get_logger(), "Goal cancelled");
+      return;
+    }
+    r.sleep();
+  }
+
+  action_server_->succeeded_current();
+
 }
 
 void SurveyPath::CreateNewPath()

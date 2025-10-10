@@ -23,14 +23,12 @@
 #include <thread>
 #include "RecordSwath.h"
 #include "PathPlan.h"
-//#include "project11/tf2_utils.h"
-
-
 
 class SurveyPath: public nav2_util::LifecycleNode
 {
 public:
-  using ActionServer = nav2_util::SimpleActionServer<project11_nav_msgs::action::MultibeamCoverage>;
+  using Action = project11_nav_msgs::action::MultibeamCoverage;
+  using ActionServer = nav2_util::SimpleActionServer<Action>;
 
   explicit SurveyPath(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
   ~SurveyPath() = default;
