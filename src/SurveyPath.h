@@ -44,7 +44,7 @@ protected:
   void goalCallback();
 
   void pingCallback(const sensor_msgs::msg::PointCloud2::UniquePtr &inmsg);
-  void navigationStateCallback(const std_msgs::msg::String::UniquePtr &inmsg);
+  void odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg);
 
   void sendPath(XYSegList const &);
 
@@ -70,6 +70,7 @@ private: // State variables
   BoatSide m_swath_side = BoatSide::Stbd;
   bool m_line_end = false;
   bool m_recording = false;
+  bool in_polygon_ = false;
   BPolygon m_op_region;
   RecordSwath m_swath_record;
   std::map<std::string, double> m_swath_info;
@@ -77,11 +78,13 @@ private: // State variables
 
   std::unique_ptr<ActionServer> action_server_;
 
-  std::unique_ptr<nav_2d_utils::OdomSubscriber> odom_sub_;
+  nav_msgs::msg::Odometry m_current_odom;
+
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr m_odom_subscription;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr m_ping_subscription;
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr m_navigation_state_subscription;
 
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr m_display_publisher;
+  visualization_msgs::msg::Marker path_marker_;
 };
 
 #endif
