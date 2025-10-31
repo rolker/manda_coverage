@@ -27,8 +27,11 @@
 #define ANGLEUTILS_HEADER
 
 #include <list>
-#include "XYPoint.h"
-#include "XYPolygon.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
+#include "manda_coverage/lib_geometry/XYPolygon.h"
+
+namespace manda_coverage
+{
 
 double  angleFromThreePoints(double x1, double y1, double x2, double y2,
 			     double x3, double y3);
@@ -65,9 +68,7 @@ double  turnGap(double osx, double osy, double osh, double tradius,
 double  headingAvg(std::list<double>);
 double  headingAvg(double, double);
 
+} // namespace manda_coverage
 
 #endif
-
-
-
 

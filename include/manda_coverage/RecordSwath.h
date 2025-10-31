@@ -11,15 +11,16 @@
 #define SurveyPath_RecordSwath_HEADER
 
 //MOOS Headers
-#include "XYPoint.h"
-#include "XYSegList.h"
-#include "XYVector.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
+#include "manda_coverage/lib_geometry/XYSegList.h"
+#include "manda_coverage/lib_geometry/XYVector.h"
 
 #include <list>
 #include <vector>
 #include <map>
 
-//#include "PathPlan.h"
+namespace manda_coverage
+{
 
 /**
  * @enum BoatSide
@@ -174,5 +175,7 @@ public:
   BoatSide m_output_side;
 
 };
+
+} // namespace manda_coverage
 
 #endif

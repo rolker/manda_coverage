@@ -28,7 +28,10 @@
 
 #include <string>
 #include <map>
-#include "ColorPack.h"
+#include "manda_coverage/lib_mbutil/ColorPack.h"
+
+namespace manda_coverage
+{
 
 class XYObject {
 public:
@@ -101,13 +104,7 @@ protected:
   double       m_transparency;
 };
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
-
 

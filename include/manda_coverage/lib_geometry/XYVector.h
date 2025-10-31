@@ -27,7 +27,10 @@
 #define XY_VECTOR_HEADER
 
 #include <string>
-#include "XYObject.h"
+#include "manda_coverage/lib_geometry/XYObject.h"
+
+namespace manda_coverage
+{
 
 class XYVector : public XYObject {
 public:
@@ -88,13 +91,8 @@ protected:
   bool      m_valid;
 };
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
 
 

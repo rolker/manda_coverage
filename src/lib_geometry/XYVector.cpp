@@ -26,10 +26,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
-#include "XYVector.h"
-#include "MBUtils.h"
-#include "GeomUtils.h"
-#include "AngleUtils.h"
+#include "manda_coverage/lib_geometry/XYVector.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -220,10 +222,4 @@ string XYVector::get_spec(string param) const
 }
 
 
-
-
-
-
-
-
-
+} // namespace manda_coverage

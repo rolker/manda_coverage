@@ -27,7 +27,10 @@
 #define XY_POINT_HEADER
 
 #include <string>
-#include "XYObject.h"
+#include "manda_coverage/lib_geometry/XYObject.h"
+
+namespace manda_coverage
+{
 
 class XYPoint : public XYObject {
  public:
@@ -76,13 +79,7 @@ protected:
   int       m_sdigits;
 };
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
-
 

@@ -28,7 +28,10 @@
 
 #include <vector>
 #include <string>
-#include "XYSegList.h"
+#include "manda_coverage/lib_geometry/XYSegList.h"
+
+namespace manda_coverage
+{
 
 class XYPolygon : public XYSegList {
 public:
@@ -81,13 +84,7 @@ private:
   bool     m_convex_state;
 };
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
-
 

@@ -28,11 +28,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
-#include "XYFormatUtilsSegl.h"
-#include "XYPatternBlock.h"
-#include "MBUtils.h"
-#include "AngleUtils.h"
-#include "GeomUtils.h"
+#include "manda_coverage/lib_geometry/XYFormatUtilsSegl.h"
+#include "manda_coverage/lib_geometry/XYPatternBlock.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -604,10 +606,5 @@ XYSegList stringBowTie2SegList(string str)
   return(new_seglist);
 }
 
-
-
-
-
-
-
+} // namespace manda_coverage
 

@@ -25,9 +25,11 @@
 
 #include <cstdlib>
 #include <cstring>
-#include "XYPoint.h"
-#include "MBUtils.h"
-#include "GeomUtils.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -100,10 +102,4 @@ string XYPoint::get_spec(string param) const
 }
 
 
-
-
-
-
-
-
-
+} // namespace manda_coverage

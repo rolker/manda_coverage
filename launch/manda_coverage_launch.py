@@ -12,7 +12,7 @@ def generate_launch_description():
     return LaunchDescription([
         LifecycleNode(
             package='manda_coverage',
-            executable='manda_coverage_node',
+            executable='manda_coverage_action_server',
             name='manda_coverage',
             namespace='',
             respawn=True,

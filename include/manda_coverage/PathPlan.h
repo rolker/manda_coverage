@@ -11,8 +11,8 @@
 #define SurveyPath_PathPlan_HEADER
 
 #include "RecordSwath.h"
-#include "XYSegList.h"
-#include "XYPolygon.h"
+#include "manda_coverage/lib_geometry/XYSegList.h"
+#include "manda_coverage/lib_geometry/XYPolygon.h"
 #include <Eigen/Core>
 #include <list>
 #include <functional>
@@ -20,6 +20,10 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/geometries.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
+
+
+namespace manda_coverage
+{
 
 // To get a single point EPointList.col(i)
 typedef Eigen::Matrix<double, 2, Eigen::Dynamic> EPointList;
@@ -250,5 +254,7 @@ class PathPlan
     std::list<Eigen::Vector2d> m_next_path_pts;
     XYSegList m_raw_path;
 };
+
+} // namespace manda_coverage
 
 #endif

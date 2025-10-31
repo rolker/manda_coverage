@@ -26,8 +26,12 @@
 #include <iostream>
 #include <cmath>
 #include <cstdlib>
-#include "GeomUtils.h"
-#include "AngleUtils.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -985,6 +989,6 @@ double distCircleToLine(double cx, double cy, double radius,
   return(0);
 }
 
-
+} // namespace manda_coverage
 
 

@@ -25,12 +25,16 @@
 
 #include <cstdlib>
 #include <cmath>
-#include "AngleUtils.h"
-#include "GeomUtils.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
 
 #ifndef M_PI
 #define M_PI 3.1415926
 #endif
+
+
+namespace manda_coverage
+{
 
 //-------------------------------------------------------------
 // Procedure: angleFromThreePoints
@@ -524,6 +528,6 @@ double headingAvg(double h1, double h2)
   return(headingAvg(pair));
 }
 
-
+} // namespace manda_coverage
 
 

@@ -24,10 +24,12 @@
 /*****************************************************************/
 
 #include <cmath>
-#include "XYPolygon.h"
-#include "MBUtils.h"
-#include "GeomUtils.h"
-#include "AngleUtils.h"
+#include "manda_coverage/lib_geometry/XYPolygon.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -946,11 +948,5 @@ XYSegList XYPolygon::exportSegList(double x, double y)
   return(new_segl);
 }
 
-
-
-
-
-
-
-
+} // namespace manda_coverage
 

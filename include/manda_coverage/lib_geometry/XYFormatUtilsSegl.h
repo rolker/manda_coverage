@@ -27,9 +27,12 @@
 #define XY_FORMAT_UTILS_SEGLIST_HEADER
 
 #include <string>
-#include "XYPolygon.h"
-#include "XYSegList.h"
-#include "XYPoint.h"
+#include "manda_coverage/lib_geometry/XYPolygon.h"
+#include "manda_coverage/lib_geometry/XYSegList.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
+
+namespace manda_coverage
+{
 
 //------------------------------------------------------------------
 // #0 Create an XYSegList from a string specification. 
@@ -79,13 +82,7 @@ XYSegList stringLawnmower2SegList(std::string);
 
 XYSegList stringBowTie2SegList(std::string);
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
-
 

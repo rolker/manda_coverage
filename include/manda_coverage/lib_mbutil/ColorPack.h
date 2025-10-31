@@ -28,8 +28,11 @@
 
 #include <vector>
 #include <string>
-#include "MBUtils.h"
-#include "ColorParse.h"
+#include "manda_coverage/lib_mbutil/MBUtils.h"
+#include "manda_coverage/lib_mbutil/ColorParse.h"
+
+namespace manda_coverage
+{
 
 class ColorPack
 {
@@ -67,15 +70,7 @@ protected:
   bool                m_visible;
   std::string         m_color_string;
 };
+
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
-
-
-
-

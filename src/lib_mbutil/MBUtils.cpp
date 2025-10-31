@@ -29,7 +29,7 @@
 #include <cstdio>
 #include <ctype.h>
 #include <iostream>
-#include "MBUtils.h"
+#include "manda_coverage/lib_mbutil/MBUtils.h"
 
 //added for time support in W32 platforms PMN  - 18 July 2005
 #ifdef _WIN32
@@ -38,6 +38,9 @@
 #include "winnt.h"
 #include <conio.h>
 #endif
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -680,7 +683,7 @@ string tolower(const string& str)
   string rstr = str;
   string::size_type len = str.length();
   for(string::size_type i=0; i<len; i++)
-    rstr[i] = tolower(str[i]);
+    rstr[i] = std::tolower(str[i]);
   return(rstr);
 }
 
@@ -692,7 +695,7 @@ string toupper(const string& str)
   string rstr = str;
   string::size_type len = str.length();
   for(string::size_type i=0; i<len; i++)
-    rstr[i] = toupper(str[i]);
+    rstr[i] = std::toupper(str[i]);
   return(rstr);
 }
 
@@ -1108,7 +1111,7 @@ bool strBegins(const string& str, const string& qstr, bool case_matters)
   }
   else {
     for(i=0; i<qlen; i++)
-      if(tolower(str[i]) != tolower(qstr[i]))
+      if(std::tolower(str[i]) != std::tolower(qstr[i]))
 	return(false);
   }
   
@@ -1135,7 +1138,7 @@ bool strEnds(const string& str, const string& qstr, bool case_matters)
   }
   else {
     for(i=0; i<qlen; i++)
-      if(tolower(str[i+start_ix]) != tolower(qstr[i]))
+      if(std::tolower(str[i+start_ix]) != std::tolower(qstr[i]))
 	return(false);
   }
   
@@ -2125,6 +2128,4 @@ vector<string> justifyLen(const string& str, unsigned int maxlen)
   return(justifyLen(svector, maxlen));
 }
 
-
-
-
+} // namespace manda_coverage

@@ -31,6 +31,9 @@
 #include <set>
 #include <time.h>
 
+namespace manda_coverage
+{
+
 std::vector<std::string> parseString(const std::string&, char);
 std::vector<std::string> parseString(const std::string&, 
 				     const std::string&);
@@ -158,11 +161,6 @@ std::vector<std::string> justifyLen(const std::vector<std::string>&,
 				    unsigned int maxlen);
 std::vector<std::string> justifyLen(const std::string&, unsigned int maxlen);
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-

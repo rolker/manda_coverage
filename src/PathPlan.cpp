@@ -6,12 +6,13 @@
  * @copyright MIT License
  */
 
-#include "PathPlan.h"
-//#include "MOOS/libMOOS/MOOSLib.h"
+#include "manda_coverage/PathPlan.h"
 #include <Eigen/Geometry>
 #include <cmath>
-// #include <stdexcept>
 #include <iterator>
+
+namespace manda_coverage
+{
 
 namespace bg = boost::geometry;
 
@@ -850,3 +851,5 @@ BPolygon PathPlan::XYPolygonToBoostPolygon(XYPolygon& poly) {
 // Eigen::Vector2d PathPlan::UnitVector(Eigen::Vector2d vector_in) {
 //   double mag = vector_in.norm()
 // }
+
+} // namespace manda_coverage

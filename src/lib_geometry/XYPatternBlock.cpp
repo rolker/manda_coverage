@@ -30,10 +30,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include "MBUtils.h"
-#include "AngleUtils.h"
-#include "GeomUtils.h"
-#include "XYPatternBlock.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+#include "manda_coverage/lib_geometry/XYPatternBlock.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -395,11 +397,4 @@ void XYPatternBlock::idPointCenter(double& retx, double& rety) const
   rety = y_total / (double)(vsize);
 }
 
-
-
-
-
-
-
-
-
+} // namespace manda_coverage

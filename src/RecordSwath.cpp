@@ -5,13 +5,18 @@
 /*    DATE: 23 Feb 2016                                     */
 /************************************************************/
 
-#include "RecordSwath.h"
+#include "manda_coverage/RecordSwath.h"
 #include <cmath>
 #include <algorithm>
-#include "AngleUtils.h"
-#include "GeomUtils.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
 
 #define TURN_THRESHOLD 20
+
+namespace manda_coverage
+{
+
+
 //---------------------------------------------------------
 // Constructor
 
@@ -244,3 +249,6 @@ bool RecordSwath::ValidRecord()
 {
     return (m_min_record.size() > 1);
 }
+
+} // namespace manda_coverage
+

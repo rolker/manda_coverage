@@ -26,10 +26,13 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include "XYSegList.h"
-#include "MBUtils.h"
-#include "GeomUtils.h"
-#include "AngleUtils.h"
+#include <sstream>
+#include "manda_coverage/lib_geometry/XYSegList.h"
+#include "manda_coverage/lib_geometry/GeomUtils.h"
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -354,6 +357,54 @@ string XYSegList::get_vprop(unsigned int i) const
     return(m_vprop[i]);
   else
     return("");
+}
+
+void XYSegList::set_vx(unsigned int i, double val)
+{
+  if(i<m_vx.size())
+    m_vx[i] = val;
+  else
+  {
+    std::stringstream ss;
+    ss << "Index " << i << " out of range (size=" << m_vx.size() << ") in XYSegList::set_vx";
+    throw std::out_of_range(ss.str());
+  }
+}
+
+void XYSegList::set_vy(unsigned int i, double val)
+{
+  if(i<m_vy.size())
+    m_vy[i] = val;
+  else
+  {
+    std::stringstream ss;
+    ss << "Index " << i << " out of range (size=" << m_vy.size() << ") in XYSegList::set_vy";
+    throw std::out_of_range(ss.str());
+  }
+}
+
+void XYSegList::set_vz(unsigned int i, double val)
+{
+  if(i<m_vz.size())
+    m_vz[i] = val;
+  else
+  {
+    std::stringstream ss;
+    ss << "Index " << i << " out of range (size=" << m_vz.size() << ") in XYSegList::set_vz";
+    throw std::out_of_range(ss.str());
+  }
+}
+
+void XYSegList::set_vprop(unsigned int i, const std::string& val)
+{
+  if(i<m_vprop.size())
+    m_vprop[i] = val;
+  else
+  {
+    std::stringstream ss;
+    ss << "Index " << i << " out of range (size=" << m_vprop.size() << ") in XYSegList::set_vprop";
+    throw std::out_of_range(ss.str());
+  }
 }
 
 //---------------------------------------------------------------
@@ -877,20 +928,4 @@ void XYSegList::rotate_pt(double deg, double cx, double cy,
   py = ny;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+} // namespace manda_coverage

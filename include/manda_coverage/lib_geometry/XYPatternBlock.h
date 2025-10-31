@@ -28,8 +28,11 @@
 
 #include <string>
 #include <vector>
-#include "XYPoint.h"
-#include "XYSegList.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
+#include "manda_coverage/lib_geometry/XYSegList.h"
+
+namespace manda_coverage
+{
 
 class XYPatternBlock {
 public:
@@ -79,14 +82,7 @@ public:
   XYSegList m_composite_seglist;
 };
 
+} // namespace manda_coverage
+
 #endif
-
-
-
-
-
-
-
-
-
 

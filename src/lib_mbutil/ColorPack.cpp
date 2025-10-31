@@ -23,7 +23,10 @@
 /* <http://www.gnu.org/licenses/>.                               */
 /*****************************************************************/
 
-#include "ColorPack.h"
+#include "manda_coverage/lib_mbutil/ColorPack.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -183,11 +186,5 @@ string ColorPack::str(char separator) const
   return(rstr);
 }
 
-
-
-
-
-
-
-
+} // namespace manda_coverage
 

@@ -27,7 +27,10 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include "XYObject.h" 
+#include "manda_coverage/lib_geometry/XYObject.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -249,10 +252,5 @@ void XYObject::aug_spec(string& orig, string new_part) const
 }
 
 
-
-
-
-
-
-
+} // namespace manda_coverage
 

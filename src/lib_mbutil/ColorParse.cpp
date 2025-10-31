@@ -25,8 +25,11 @@
 
 #include <iostream>
 #include <cstdlib>
-#include "ColorParse.h"
-#include "MBUtils.h"
+#include "manda_coverage/lib_mbutil/ColorParse.h"
+#include "manda_coverage/lib_mbutil/MBUtils.h"
+
+namespace manda_coverage
+{
 
 using namespace std;
 
@@ -545,10 +548,5 @@ void mag(const string& str, const string& xstr)
   cout << "\33[35m" << str << "\33[0m" << xstr << endl;
 }
 
-
-
-
-
-
-
+} // namespace manda_coverage
 

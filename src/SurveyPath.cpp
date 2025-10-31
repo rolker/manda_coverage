@@ -6,107 +6,236 @@
 /************************************************************/
 
 #include <iterator>
-#include <regex>
-#include "MBUtils.h"
-//#include "ACTable.h"
-#include "AngleUtils.h"
-#include "XYFormatUtilsSegl.h"
-#include "RecordSwath.h"
-#include "PathPlan.h"
-#include "SurveyPath.h"
+//#include <regex>
+#include "manda_coverage/lib_geometry/AngleUtils.h"
+#include "manda_coverage/lib_geometry/XYFormatUtilsSegl.h"
+#include "manda_coverage/RecordSwath.h"
+#include "manda_coverage/PathPlan.h"
+#include "manda_coverage/SurveyPath.h"
 #include <boost/algorithm/string.hpp>
 #include "sensor_msgs/point_cloud2_iterator.hpp"
+#include "marine_nav_utilities/utilities.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/utils.h"
+#include "nav2_util/node_utils.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+
+
+namespace manda_coverage
+{
+
 
 //---------------------------------------------------------
 // Constructor
 
-SurveyPath::SurveyPath(const rclcpp::NodeOptions & options) :
-  nav2_util::LifecycleNode("manda_coverage", "", options),
-    m_swath_record(10)
+SurveyPath::SurveyPath(NodeInterfaces node_interfaces)
+ :m_swath_record(10),
+  node_interfaces_(node_interfaces),
+  logger_(node_interfaces.get_node_logging_interface()->get_logger()),
+  clock_(node_interfaces.get_node_clock_interface()->get_clock())
 {
 
 }
 
-nav2_util::CallbackReturn
-SurveyPath::on_configure(const rclcpp_lifecycle::State & /*state*/)
+void SurveyPath::configure()
 {
-  auto node = shared_from_this();
-
   m_swath_side = BoatSide::Stbd;
   m_swath_record.SetOutputSide(m_swath_side);
 
-  m_line_end = false;
   m_recording = false;
 
-  nav2_util::declare_parameter_if_not_declared(
-    node, "soundings_topic", rclcpp::ParameterValue("soundings"));
+  auto parameter_interface = node_interfaces_.get_node_parameters_interface();
 
-  std::string soundings_topic = get_parameter("soundings_topic").as_string();
+  if(!parameter_interface->has_parameter("soundings_topic"))
+    parameter_interface->declare_parameter("soundings_topic", rclcpp::ParameterValue("soundings"));
 
-  m_ping_subscription = create_subscription<sensor_msgs::msg::PointCloud2>(
-    soundings_topic, rclcpp::SensorDataQoS(), std::bind(&SurveyPath::pingCallback, this, std::placeholders::_1));
+  std::string soundings_topic = parameter_interface->get_parameter("soundings_topic").as_string();
 
-  m_odom_subscription = create_subscription<nav_msgs::msg::Odometry>(
-    "odom", rclcpp::SensorDataQoS(), std::bind(&SurveyPath::odomCallback, this, std::placeholders::_1));
+  auto callback_group = node_interfaces_.get_node_base_interface()->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+  rclcpp::SubscriptionOptions subscription_options;
+  subscription_options.callback_group = callback_group;
 
-  nav2_util::declare_parameter_if_not_declared(
-    node, "display_topic", rclcpp::ParameterValue(""));
-  
-  std::string display_topic = get_parameter("display_topic").as_string();
+  m_ping_subscription = rclcpp::create_subscription<sensor_msgs::msg::PointCloud2>(
+    node_interfaces_,
+    soundings_topic,
+    rclcpp::SensorDataQoS(),
+    std::bind(&SurveyPath::pingCallback, this, std::placeholders::_1),
+    subscription_options
+  );
+
+  m_odom_subscription = rclcpp::create_subscription<nav_msgs::msg::Odometry>(
+    node_interfaces_,
+    "odom",
+    rclcpp::SensorDataQoS(),
+    std::bind(&SurveyPath::odomCallback, this, std::placeholders::_1),
+    subscription_options
+  );
+
+  if(!parameter_interface->has_parameter("display_topic"))
+    parameter_interface->declare_parameter("display_topic", rclcpp::ParameterValue(""));
+
+  std::string display_topic = parameter_interface->get_parameter("display_topic").as_string();
+
   if(display_topic != "")
-    m_display_publisher = create_publisher<visualization_msgs::msg::Marker>(display_topic, 10);
+    m_display_publisher = rclcpp::create_publisher<visualization_msgs::msg::Marker>(node_interfaces_, display_topic, 10);
   else
     m_display_publisher.reset();
 
-  double action_server_result_timeout = 10.0;
-  nav2_util::declare_parameter_if_not_declared(
-    node, "action_server_result_timeout", rclcpp::ParameterValue(10.0));
-  get_parameter("action_server_result_timeout", action_server_result_timeout);
-  rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
-  server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
+  if(!parameter_interface->has_parameter("waypoint_distance_threshold"))
+    parameter_interface->declare_parameter("waypoint_distance_threshold", rclcpp::ParameterValue(waypoint_distance_threshold_));
+  waypoint_distance_threshold_ = parameter_interface->get_parameter("waypoint_distance_threshold").as_double();
 
-  action_server_ = std::make_unique<ActionServer>(
-    shared_from_this(),
-    "survey_area_action",
-    std::bind(&SurveyPath::goalCallback, this),
-    nullptr,
-    std::chrono::milliseconds(500),
-    false, server_options);
+  if(!parameter_interface->has_parameter("lead_in_distance"))
+    parameter_interface->declare_parameter("lead_in_distance", rclcpp::ParameterValue(lead_in_distance_));
+  lead_in_distance_ = parameter_interface->get_parameter("lead_in_distance").as_double();
 
-  return nav2_util::CallbackReturn::SUCCESS;
+  if(!parameter_interface->has_parameter("lead_out_distance"))
+    parameter_interface->declare_parameter("lead_out_distance", rclcpp::ParameterValue(lead_out_distance_));
+  lead_out_distance_ = parameter_interface->get_parameter("lead_out_distance").as_double();
+
 }
 
-nav2_util::CallbackReturn SurveyPath::on_activate(const rclcpp_lifecycle::State & state)
+void SurveyPath::activate()
 {
-  action_server_->activate();
-  createBond();
-  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-nav2_util::CallbackReturn SurveyPath::on_deactivate(const rclcpp_lifecycle::State & state)
+void SurveyPath::deactivate()
 {
-  action_server_->deactivate();
-  destroyBond();
-  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-nav2_util::CallbackReturn SurveyPath::on_cleanup(const rclcpp_lifecycle::State & state)
+void SurveyPath::cleanup()
 {
-  action_server_.reset();
   m_ping_subscription.reset();
   m_display_publisher.reset();
   m_odom_subscription.reset();
-  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-void SurveyPath::pingCallback(const sensor_msgs::msg::PointCloud2::UniquePtr& inmsg)
+void SurveyPath::set_next_line_callback(std::function<void(const nav_msgs::msg::Path&, int)> next_line_callback)
 {
-  RCLCPP_INFO_STREAM_THROTTLE(get_logger(), *get_clock(), 1000, "Ping!" << " recording: " << m_recording << " line_end: " << m_line_end << " state: " << (m_state==transit?"transit":"survey") << " in_polygon: " << in_polygon_ << " x: " << m_current_odom.pose.pose.position.x << " y: " << m_current_odom.pose.pose.position.y);
+  next_line_callback_ = next_line_callback;
+}
 
-  sensor_msgs::PointCloud2ConstIterator<float> iter_y(*inmsg, "y");
-  sensor_msgs::PointCloud2ConstIterator<float> iter_z(*inmsg, "z");
+void SurveyPath::set_done_callback(std::function<void(bool)> done_callback)
+{
+  done_callback_ = done_callback;
+}
+
+
+void SurveyPath::set_goal(const geometry_msgs::msg::PolygonStamped &goal)
+{
+  RCLCPP_INFO_STREAM(logger_, "Goal received");
+
+  if(goal.polygon.points.empty())
+  {
+    m_state = idle;
+    m_recording = false;
+    m_op_region.clear();
+    m_survey_path.clear();
+    path_marker_.points.clear();
+    return;
+  } 
+
+  m_map_frame = goal.header.frame_id;
+  RCLCPP_INFO_STREAM(logger_, "map frame: " << m_map_frame);
+
+  m_op_region.clear();
+  m_survey_path.clear();
+  path_marker_.points.clear();
+
+  for(const auto& point: goal.polygon.points)
+  {
+    RCLCPP_INFO_STREAM(logger_, "  point: " << point.x << ", " << point.y);
+    boost::geometry::append(m_op_region.outer(), BPoint(point.x, point.y));
+    if(m_survey_path.size() < 2)
+      m_survey_path.add_vertex(point.x,point.y);
+  }
+
+  boost::geometry::append(m_op_region.outer(),m_op_region.outer()[0]);
+
+  boost::geometry::validity_failure_type failure;
+  bool valid = boost::geometry::is_valid(m_op_region, failure);
+  RCLCPP_INFO_STREAM(logger_, "Polygon valid: " << (valid?"yes":"no"));
+  if(failure == boost::geometry::failure_wrong_orientation)
+  {
+    // counter-clockwise, so first line is port
+    m_swath_side = BoatSide::Port;
+    RCLCPP_INFO_STREAM(logger_, "Port side");
+  }
+  else
+  {
+    // clockwise so stbd first
+    m_swath_side = BoatSide::Stbd;
+    RCLCPP_INFO_STREAM(logger_, "Starboard side");
+  }
+  m_swath_record.SetOutputSide(m_swath_side);
+    
+  if(!valid)
+  {
+    RCLCPP_WARN_STREAM(logger_, "Invalid polygon, trying to correct");
+    boost::geometry::correct(m_op_region);
+  }
+
+  std::string reason;
+  valid = boost::geometry::is_valid(m_op_region, reason);
+  if(!valid)
+    RCLCPP_WARN_STREAM(logger_, "Invalid polygon: " << reason);
+
+  RCLCPP_INFO_STREAM(logger_, "Goal received: polygon with " << m_op_region.outer().size() << " vertices");
+
+  RCLCPP_INFO_STREAM(logger_, "Initial line");
+  for(int i = 0; i < m_survey_path.size(); i++)
+      RCLCPP_INFO_STREAM(logger_, "    point: " << m_survey_path.get_vx(i) << ", " << m_survey_path.get_vy(i));
+
+  m_swath_record.ResetLine();
+
+  // Set the alignment lines and turn for the first line
+  DetermineStartAndTurn(m_survey_path);
+}
+
+
+
+
+void SurveyPath::odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg)
+{
+  const auto& odom = *odom_msg;
+  current_odom_ = odom;
+
+  if(m_survey_path.size() < 2)
+      return;
+
+  BPoint current_position(odom.pose.pose.position.x, odom.pose.pose.position.y);
+
+  if(m_state == transit)
+  {
+    auto distance_to_start = boost::geometry::distance(current_position, BPoint(m_survey_path.get_vx(0), m_survey_path.get_vy(0)));
+    if(distance_to_start < waypoint_distance_threshold_)
+    {
+      RCLCPP_INFO_STREAM(logger_, "End of line, transit -> survey");
+      m_state = survey;
+      m_recording = true;
+    }
+  }
+  else if(m_state == survey)
+  {
+    auto distance_to_end = boost::geometry::distance(current_position, BPoint(m_survey_path.get_vx(m_survey_path.size()-1), m_survey_path.get_vy(m_survey_path.size()-1)));
+    if(distance_to_end < waypoint_distance_threshold_)
+    {
+      RCLCPP_INFO_STREAM(logger_, "End of line, survey -> transit");
+      m_recording = false;
+      CreateNewPath();
+      m_state = transit;
+    }
+  }
+}
+
+void SurveyPath::pingCallback(const sensor_msgs::msg::PointCloud2::SharedPtr ping)
+{
+
+  RCLCPP_DEBUG_STREAM_THROTTLE(logger_, *clock_, 1000, "Ping!" << " recording: " << m_recording << " state: " << (m_state==transit?"transit":"survey") << " x: " << current_odom_.pose.pose.position.x << " y: " << current_odom_.pose.pose.position.y);
+
+  sensor_msgs::PointCloud2ConstIterator<float> iter_y(*ping, "y");
+  sensor_msgs::PointCloud2ConstIterator<float> iter_z(*ping, "z");
 
   float miny, maxy;
 
@@ -134,30 +263,14 @@ void SurveyPath::pingCallback(const sensor_msgs::msg::PointCloud2::UniquePtr& in
     // crude approximation of nadir depth
   m_swath_info["depth"] = depths[depths.size()/2];
 
-  m_swath_info["x"] = m_current_odom.pose.pose.position.x;
-  m_swath_info["y"] = m_current_odom.pose.pose.position.y;
-  auto yaw = tf2::getYaw(m_current_odom.pose.pose.orientation);
+  m_swath_info["x"] = current_odom_.pose.pose.position.x;
+  m_swath_info["y"] = current_odom_.pose.pose.position.y;
+  auto yaw = tf2::getYaw(current_odom_.pose.pose.orientation);
   m_swath_info["hdg"] = 90-(yaw*180.0/M_PI);
 
-  Iterate();
-}
-
-void SurveyPath::odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg)
-{
-  m_current_odom = *odom_msg;
-
-  in_polygon_ = boost::geometry::within(BPoint(m_current_odom.pose.pose.position.x, m_current_odom.pose.pose.position.y), m_op_region.outer());
-  if((m_state == transit && in_polygon_)||(m_state == survey && !in_polygon_))
-  {
-    m_line_end = true;
-  }
-}
-
-void SurveyPath::Iterate()
-{
   if (m_recording) 
   {
-    RCLCPP_INFO_STREAM(get_logger(), "Recording swath: port " << m_swath_info["port"] << " stbd " << m_swath_info["stbd"]
+    RCLCPP_DEBUG_STREAM(logger_, "Recording swath: port " << m_swath_info["port"] << " stbd " << m_swath_info["stbd"]
                             << " x " << m_swath_info["x"] << " y " << m_swath_info["y"]
                             << " hdg " << m_swath_info["hdg"] << " depth " << m_swath_info["depth"]);
     m_swath_record.AddRecord(m_swath_info["stbd"], m_swath_info["port"],
@@ -166,12 +279,12 @@ void SurveyPath::Iterate()
 
 
     XYSegList points = m_swath_record.SwathOuterPts(m_swath_side);
-    RCLCPP_INFO_STREAM(get_logger(), "Swath outer points: " << points.size());
+    RCLCPP_INFO_STREAM(logger_, "Swath outer points: " << points.size());
     if(points.size() > 0 && m_display_publisher)
     {
       visualization_msgs::msg::Marker marker;
       marker.header.frame_id = m_map_frame;
-      marker.header.stamp = get_clock()->now();
+      marker.header.stamp = clock_->now();
       marker.ns = "manda_coverage_swath";
       marker.id = 0;
       marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
@@ -214,181 +327,83 @@ void SurveyPath::Iterate()
 
     }
   }
-    if (m_line_end) 
-    {
-        if(m_state == transit)
-        {
-          RCLCPP_INFO_STREAM(get_logger(), "End of line, transit -> survey");
-            m_line_end = false;
-            //sendPath(m_survey_path);
-            m_state = survey;
-            m_recording = true;
-        }
-        else if(m_state == survey)
-        {
-            RCLCPP_INFO_STREAM(get_logger(), "End of line, survey -> transit");
-            m_recording = false;
-            CreateNewPath();
-            m_line_end = false;
-            m_state = transit;
-        }
-    }
+
 }
 
 bool SurveyPath::SwathOutsideRegion() 
 {
-    std::pair<XYPoint, XYPoint> swath_edges = m_swath_record.LastOuterPoints();
-    BPoint port_edge(swath_edges.first.x(), swath_edges.first.y());
-    BPoint stbd_edge(swath_edges.second.x(), swath_edges.second.y());
+  std::pair<XYPoint, XYPoint> swath_edges = m_swath_record.LastOuterPoints();
+  BPoint port_edge(swath_edges.first.x(), swath_edges.first.y());
+  BPoint stbd_edge(swath_edges.second.x(), swath_edges.second.y());
 
-    auto outer_ring = m_op_region.outer();
-    bool outside_region = !boost::geometry::within(port_edge, outer_ring);
-    outside_region = outside_region && !boost::geometry::within(stbd_edge, outer_ring);
+  auto outer_ring = m_op_region.outer();
+  bool outside_region = !boost::geometry::within(port_edge, outer_ring);
+  outside_region = outside_region && !boost::geometry::within(stbd_edge, outer_ring);
 
-    return outside_region;
+  return outside_region;
 }
 
-void SurveyPath::goalCallback()
-{
-  RCLCPP_INFO_STREAM(get_logger(), "Goal received");
-  auto goal = action_server_->get_current_goal();
-    
-  m_map_frame = goal->survey_area.header.frame_id;
-  RCLCPP_INFO_STREAM(get_logger(), "map frame: " << m_map_frame);
-
-  m_op_region.clear();
-  m_survey_path.clear();
-  path_marker_.points.clear();
-
-  for(auto point: goal->survey_area.polygon.points)
-  {
-    RCLCPP_INFO_STREAM(get_logger(), "  point: " << point.x << ", " << point.y);
-    boost::geometry::append(m_op_region.outer(), BPoint(point.x, point.y));
-    if(m_survey_path.size() < 2)
-      m_survey_path.add_vertex(point.x,point.y);
-  }
-  boost::geometry::append(m_op_region.outer(),m_op_region.outer()[0]);
-
-  boost::geometry::validity_failure_type failure;
-  bool valid = boost::geometry::is_valid(m_op_region, failure);
-  RCLCPP_INFO_STREAM(get_logger(), "Polygon valid: " << (valid?"yes":"no"));
-  if(failure == boost::geometry::failure_wrong_orientation)
-  {
-    // counter-clockwise, so first line is port
-    m_swath_side = BoatSide::Port;
-    RCLCPP_INFO_STREAM(get_logger(), "Port side");
-  }
-  else
-  {
-    // clockwise so stbd first
-    m_swath_side = BoatSide::Stbd;
-    RCLCPP_INFO_STREAM(get_logger(), "Starboard side");
-  }
-  m_swath_record.SetOutputSide(m_swath_side);
-    
-  if(!valid)
-  {
-    RCLCPP_WARN_STREAM(get_logger(), "Invalid polygon, trying to correct");
-    //std::cerr << "Trying to correct invalid polygon" << std::endl;
-    boost::geometry::correct(m_op_region);
-  }
-
-  std::string reason;
-  valid = boost::geometry::is_valid(m_op_region, reason);
-  if(!valid)
-    RCLCPP_WARN_STREAM(get_logger(), "Invalid polygon: " << reason);
-
-  RCLCPP_INFO_STREAM(get_logger(), "Goal received: polygon with " << m_op_region.outer().size() << " vertices");
-
-  RCLCPP_INFO_STREAM(get_logger(), "Initial line");
-  for(int i = 0; i < m_survey_path.size(); i++)
-      RCLCPP_INFO_STREAM(get_logger(), "    point: " << m_survey_path.get_vx(i) << ", " << m_survey_path.get_vy(i));
-
-  m_swath_record.ResetLine();
-
-  // Set the alignment lines and turn for the first line
-  DetermineStartAndTurn(m_survey_path);
-
-  rclcpp::Rate r(rclcpp::Duration::from_seconds(0.1));
-  while(rclcpp::ok())
-  {
-    if (action_server_ == nullptr || !action_server_->is_server_active()) {
-        RCLCPP_DEBUG(get_logger(), "Action server unavailable or inactive. Stopping.");
-        return;
-    }
-
-    if (action_server_->is_cancel_requested())
-    {
-      action_server_->terminate_all();
-      RCLCPP_INFO(get_logger(), "Goal cancelled");
-      return;
-    }
-    if(action_server_->is_preempt_requested())
-    {
-      RCLCPP_INFO(get_logger(), "Goal preempted");
-      action_server_->terminate_current();
-      return;
-    }
-    r.sleep();
-  }
-
-  action_server_->succeeded_current();
-
-}
 
 void SurveyPath::CreateNewPath()
 {
-    m_swath_record.SaveLast();
-    if (m_swath_record.ValidRecord())
+  m_swath_record.SaveLast();
+  if (m_swath_record.ValidRecord())
+  {
+    // TODO: Check for all swath widths being zero to end area
+    // Build full coverage model at some point? Or do this in PathPlan...
+    PathPlan planner = PathPlan(m_swath_record, m_swath_side, m_op_region,
+                                m_swath_overlap, m_max_bend_angle, true);
+    m_survey_path = planner.GenerateNextPath();
+    if (m_survey_path.size() > 2) 
     {
-        // TODO: Check for all swath widths being zero to end area
-        // Build full coverage model at some point? Or do this in PathPlan...
-        PathPlan planner = PathPlan(m_swath_record, m_swath_side, m_op_region,
-                                    m_swath_overlap, m_max_bend_angle, true);
-        m_survey_path = planner.GenerateNextPath();
-        if (m_survey_path.size() > 2) 
-        {
-            DetermineStartAndTurn(m_survey_path);
-        }
-        else 
-        {
-            m_state = idle;
-            auto result = std::make_shared<project11_nav_msgs::action::MultibeamCoverage_Result>();
-            result->success = true;
-            action_server_->succeeded_current(result);
-        }
-        m_swath_side = AdvanceSide(m_swath_side);
-        m_swath_record.SetOutputSide(m_swath_side);
-        m_swath_record.ResetLine();
+        DetermineStartAndTurn(m_survey_path);
     }
+    else 
+    {
+      m_state = idle;
+      if(done_callback_)
+      {
+        done_callback_(true);
+      }
+    }
+    m_swath_side = AdvanceSide(m_swath_side);
+    m_swath_record.SetOutputSide(m_swath_side);
+    m_swath_record.ResetLine();
+  }
 }
 
 bool SurveyPath::DetermineStartAndTurn(XYSegList& next_pts) 
 {
-    sendPath(next_pts);
-    m_state = transit;
-    m_recording = false;
-    m_line_end = false;
+  extendPathForLeadInOut(next_pts);
+  sendPath(next_pts);
+  m_state = transit;
+  m_recording = false;
 
-    return true;
+  return true;
 }
 
 void SurveyPath::sendPath(XYSegList const &path)
 {
-  auto feedback = std::make_shared<project11_nav_msgs::action::MultibeamCoverage_Feedback>();
+  nav_msgs::msg::Path next_path;
+  next_path.header.frame_id = m_map_frame;
   for(int i = 0; i < path.size(); i++)
   {
-      geometry_msgs::msg::PoseStamped pose;
-      pose.header.frame_id = m_map_frame;
-      pose.pose.position.x = path.get_vx(i);
-      pose.pose.position.y = path.get_vy(i);
+    geometry_msgs::msg::PoseStamped pose;
+    pose.header.frame_id = m_map_frame;
+    pose.pose.position.x = path.get_vx(i);
+    pose.pose.position.y = path.get_vy(i);
 
-      feedback->current_line.poses.push_back(pose);
+    next_path.poses.push_back(pose);
   }
-  m_line_number += 1;
-  feedback->line_number = m_line_number;
 
-  action_server_->publish_feedback(feedback);
+  marine_nav_utilities::adjustPathOrientations(next_path.poses);
+
+  m_line_number += 1;
+
+  if(next_line_callback_)
+  {
+    next_line_callback_(next_path, m_line_number);
+  }
 
   path_marker_.points.clear();
   for(int i = 0; i < path.size(); i++)
@@ -398,8 +413,6 @@ void SurveyPath::sendPath(XYSegList const &path)
       p.y = path.get_vy(i);
       path_marker_.points.push_back(p);
   }
-    
-  m_line_end = false;
 }
 
 
@@ -407,13 +420,44 @@ BoatSide SurveyPath::AdvanceSide(BoatSide side)
 {
   if (side == BoatSide::Stbd)
   {
-    RCLCPP_INFO_STREAM(get_logger(), "Starboard to Port");
+    RCLCPP_INFO_STREAM(logger_, "Starboard to Port");
     return BoatSide::Port;
   } 
   else if (side == BoatSide::Port) 
   {
-    RCLCPP_INFO_STREAM(get_logger(), "Port to Starboard");
+    RCLCPP_INFO_STREAM(logger_, "Port to Starboard");
     return BoatSide::Stbd;
   }
   return BoatSide::Unknown;
 }
+
+void SurveyPath::extendPathForLeadInOut(XYSegList& path)
+{
+  if(path.size() < 2)
+    return;
+
+  // Lead-in
+  tf2::Vector3 start_vector(path.get_vx(0), path.get_vy(0), 0);
+  tf2::Vector3 next_vector(path.get_vx(1), path.get_vy(1), 0);
+  tf2::Vector3 direction_vector = next_vector - start_vector;
+  direction_vector.normalize();
+
+  start_vector -= direction_vector * lead_in_distance_;
+  path.set_vx(0, start_vector.x());
+  path.set_vy(0, start_vector.y());
+
+  // Lead-out
+  auto last_index = path.size()-1;
+  auto next_to_last_index = last_index - 1;
+  tf2::Vector3 last_position(path.get_vx(last_index), path.get_vy(last_index), 0);
+  tf2::Vector3 next_to_last_position(path.get_vx(next_to_last_index), path.get_vy(next_to_last_index), 0);
+  direction_vector = last_position - next_to_last_position;
+  direction_vector.normalize();
+
+  last_position += direction_vector * lead_out_distance_;
+  path.set_vx(last_index, last_position.x());
+  path.set_vy(last_index, last_position.y());
+}
+
+} // namespace manda_coverage
+

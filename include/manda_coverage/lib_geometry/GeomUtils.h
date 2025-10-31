@@ -26,8 +26,11 @@
 #ifndef XY_GEOM_UTILS_HEADER
 #define XY_GEOM_UTILS_HEADER
 
-#include "XYPoint.h"
-#include "XYPolygon.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
+#include "manda_coverage/lib_geometry/XYPolygon.h"
+
+namespace manda_coverage
+{
 
 // Determines the distance between two points
 double distPointToPointXXX(double x1, double y1, double x2, double y2);
@@ -98,8 +101,7 @@ double distToPoint(double x1, double y1, double x2, double y2);
 double distToSegment(double x1, double y1, double x2, 
 		     double y2, double px, double py);
   
+} // namespace manda_coverage
+
 #endif
-
-
-
 

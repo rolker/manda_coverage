@@ -28,9 +28,12 @@
 
 #include <vector>
 #include <string>
-#include "XYObject.h"
-#include "XYPoint.h"
+#include "manda_coverage/lib_geometry/XYObject.h"
+#include "manda_coverage/lib_geometry/XYPoint.h"
 #include <iostream>
+
+namespace manda_coverage
+{
 
 class XYSegList : public XYObject {
 public:
@@ -66,6 +69,10 @@ public:
   double get_vy(unsigned int) const;
   double get_vz(unsigned int) const;
   std::string get_vprop(unsigned int) const;
+  void set_vx(unsigned int, double);
+  void set_vy(unsigned int, double);
+  void set_vz(unsigned int, double);
+  void set_vprop(unsigned int, const std::string&);
   double get_center_x() const;
   double get_center_y() const;
   double get_centroid_x() const;
@@ -104,8 +111,7 @@ protected:
 
 };
 
+} // namespace manda_coverage
+
 #endif
-
-
-
 
