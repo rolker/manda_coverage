@@ -279,7 +279,6 @@ void SurveyPath::pingCallback(const sensor_msgs::msg::PointCloud2::SharedPtr pin
 
 
     XYSegList points = m_swath_record.SwathOuterPts(m_swath_side);
-    RCLCPP_INFO_STREAM(logger_, "Swath outer points: " << points.size());
     if(points.size() > 0 && m_display_publisher)
     {
       visualization_msgs::msg::Marker marker;
