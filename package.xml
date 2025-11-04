@@ -14,6 +14,7 @@
   <buildtool_depend>eigen3_cmake_module</buildtool_depend>
   <build_depend>eigen</build_depend>
 
+  <depend>marine_nav_interfaces</depend>
   <depend>marine_nav_utilities</depend>
   <depend>nav_msgs</depend>
   <depend>nav_2d_utils</depend>
