@@ -156,3 +156,25 @@ overridden by `configure()`).
 
 ### Next step
 Ready for review-code. No push/PR performed (host publishes after local review).
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-06-30 16:10 +00:00
+**By**: Claude Code Agent (Claude Opus)
+**Verdict**: approved
+
+**Branch**: feature/issue-4 at `df6b2a9`
+**Mode**: pre-push
+**Depth**: Standard (reason: multi-file C++ source touching ROS 2 parameter API + new test target; single package)
+**Must-fix**: 0 | **Suggestions**: 3
+**Round**: 1 | **Ship**: recommended — no must-fix; clean, plan-faithful Phase-1 increment, default behaviour unchanged
+
+### Findings
+- [ ] (suggestion) `min_allowable_swath` threshold applied in `SwathWidth()` but not `SwathOuterPts`/`OuterPoint`/`AllSwathWidths` — partial below-threshold coverage keeps `all_zero` false and zero-offsets sub-threshold points; document or apply consistently + add PathPlan integration test (cross-pass confirmed: Lens A + Lens B) — `src/RecordSwath.cpp:217` / `src/PathPlan.cpp:85`
+- [ ] (suggestion) Boundary `width == min_allowable_swath` (strict `<` keeps it as valid) is untested — add a boundary test — `src/RecordSwath.cpp:217`
+- [ ] (suggestion) Redundant trailing blank line at end of `configure()` (only new lint finding on a touched line) — `src/SurveyPath.cpp:131`
+
+### Notes
+- Plan adherence strong: all planned files changed, no scope creep; finite `numeric_limits<double>::max()` range sentinels, dead `m_swath_interval` retired, `find_package(ament_cmake_ros)` added, `package.xml` correctly unchanged.
+- Range enforcement verified active at node `set_parameter` level (not just descriptor metadata). Build/CMake/test wiring clean; new `test/test_parameters.cpp` is lint-clean. Legacy MOOS lint baseline is pre-existing and not attributed to this PR.
+- Tests reported 6/6 passing in the Implementation entry; not independently re-run this session.
