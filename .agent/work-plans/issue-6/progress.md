@@ -305,7 +305,7 @@ race fix and the three suggestion fixes are genuinely resolved.
 
 ### Findings
 - [x] (suggestion) main.cpp/action_server.cpp threading comments overstate the guarantee: SingleThreadedExecutor serializes lifecycle-manager-driven transitions (executor thread) but nav2_util's rcl pre-shutdown callback drives deactivate/cleanup -> control_server_.reset() on the signal-handler thread, so the timer/sub-teardown-vs-heartbeat race persists on the SIGINT-while-active path; scope the comment + confirm the marine_control adoption-gap follow-up is filed — `src/main.cpp:16-25`, `src/action_server.cpp:54-56`
-- [ ] (suggestion) SingleThreadedExecutor responsiveness tradeoff: a long planning callback (odom/ping -> CreateNewPath -> PathPlan) now blocks the ControlServer heartbeat/change handling and action handling on the one thread; deliberate round-1 decision, worth recording — `src/main.cpp:25`
+- [x] (suggestion) SingleThreadedExecutor responsiveness tradeoff: a long planning callback (odom/ping -> CreateNewPath -> PathPlan) now blocks the ControlServer heartbeat/change handling and action handling on the one thread; deliberate round-1 decision, worth recording — `src/main.cpp:25`
 - [ ] (suggestion) test TearDown never remove_node(node_) (only sub_node_); node_.reset() drops the owner while still registered — benign now, fragile if TearDown ever spins — `test/test_control_server_lifecycle.cpp:74-80`
 - [ ] (suggestion) test ends in active state; final control_server_ teardown runs from the unique_ptr destructor, not on_deactivate/on_shutdown (on_deactivate is still exercised mid-test) — `test/test_control_server_lifecycle.cpp:74-80`
 

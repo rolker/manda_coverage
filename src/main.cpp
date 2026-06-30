@@ -31,6 +31,12 @@ int main(int argc, char *argv[])
   // the SIGINT-while-active path at process exit. The general fix lives in
   // marine_control (inject an external callback group / lock bindings_):
   // rolker/marine_control#12.
+  //
+  // Responsiveness tradeoff (deliberate, round-1 review): one thread means a long
+  // planning callback (odom/ping -> CreateNewPath -> PathPlan) blocks the
+  // ControlServer heartbeat/change handling and the action handling until it
+  // returns. Acceptable for this lightweight planner; revisit (with the
+  // marine_control#12 fix) if planning latency starts to starve operator control.
   auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
   executor->add_node(node->get_node_base_interface());
 
