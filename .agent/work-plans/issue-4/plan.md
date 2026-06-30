@@ -38,10 +38,17 @@ Current state (verified against source):
 
    | ROS name | default | range |
    |---|---|---|
-   | `swath_overlap` | `0.2` | `[0.0, 1.0]`, step `0.0` |
-   | `max_bend_angle` | `60.0` | `[0.0, 90.0]`, step `0.0` |
-   | `swath_record_interval` | `10.0` | `(0.0, ∞)` — use `from_value=0.001` |
-   | `min_allowable_swath` | `0.0` | `[0.0, ∞)` — use `to_value=0.0` to omit upper bound |
+   | `swath_overlap` | `0.2` | `from_value=0.0`, `to_value=1.0`, step `0.0` |
+   | `max_bend_angle` | `60.0` | `from_value=0.0`, `to_value=90.0`, step `0.0` |
+   | `swath_record_interval` | `10.0` | `from_value=0.001`, `to_value=std::numeric_limits<double>::max()` |
+   | `min_allowable_swath` | `0.0` | `from_value=0.0`, `to_value=std::numeric_limits<double>::max()` |
+
+   Unbounded-above params use `std::numeric_limits<double>::max()` as a finite
+   upper sentinel (requires `#include <limits>`). Do **not** use `to_value=0.0`
+   to mean "no upper bound" — that yields a degenerate/zero-width range that
+   rejects the default at `configure()` time. Declarations are factored through
+   a local `declare_bounded` lambda that builds the descriptor, declares the
+   parameter (guarded by `has_parameter`), and returns the read-back value.
 
 3. **Read parameters and apply** — after `declare_parameter`, `get_parameter`
    each value, store in the existing `m_swath_overlap` / `m_max_bend_angle`
@@ -53,19 +60,29 @@ Current state (verified against source):
    (let `RecordSwath` use its default of `10`; `configure()` will override it).
 
 5. **Add unit tests** in `test/test_parameters.cpp` using
-   `ament_add_ros_isolated_gtest`. Two tests:
-   - `TestDefaultParameters` — create node, build `SurveyPath`, call `configure()`,
-     verify each parameter is set to its default value via `get_parameter`.
-   - `TestOutOfRangeRejection` — after `configure()`, call `node->set_parameter()`
-     with values outside each declared range; verify each returns
-     `result.successful == false`.
+   `ament_add_ros_isolated_gtest`. The fixture inits/shuts down rclcpp per test
+   (no custom `main()`, so no clash with the gtest main ament links). Tests:
+   - `SurveyPathParameterTest.DefaultParameters` — create node, build `SurveyPath`,
+     call `configure()`, verify each parameter is set to its default via
+     `get_parameter`.
+   - `SurveyPathParameterTest.OutOfRangeRejection` — after `configure()`, call
+     `node->set_parameter()` with values outside each declared range; verify each
+     returns `result.successful == false`.
+   - `SurveyPathParameterTest.InRangeAccepted` — symmetric check that valid values
+     are accepted.
+   - `RecordSwathThreshold.{Above,Below,Default}Threshold*` — exercise
+     `RecordSwath::SwathWidth()` thresholding directly: a recorded width below
+     `min_allowable_swath` returns `0.0` (drives PathPlan's `all_zero`
+     coverage-complete check), at/above returns the real width, and the default
+     `0.0` threshold never zeroes a positive width.
 
 6. **Update `CMakeLists.txt`** — inside `BUILD_TESTING` block, add
-   `ament_add_ros_isolated_gtest`, link against the `manda_coverage` library and
-   `rclcpp`.
+   `find_package(ament_cmake_ros REQUIRED)` (to expose
+   `ament_add_ros_isolated_gtest`), declare the `test_parameters` test, and link
+   it against the `manda_coverage` library and `rclcpp`.
 
-7. **Update `package.xml`** — add `<test_depend>ament_cmake_ros</test_depend>` if
-   `ament_add_ros_isolated_gtest` is not already available.
+7. **`package.xml`** — no change needed: `ament_cmake_ros` is already a
+   `buildtool_depend`, so no `<test_depend>` add is required.
 
 ## Files to Change
 
@@ -75,9 +92,9 @@ Current state (verified against source):
 | `src/RecordSwath.cpp` | Implement setters; threshold `m_min_allowable_swath` in `SwathWidth()` |
 | `include/manda_coverage/SurveyPath.h` | Delete `m_swath_interval`; no new members needed |
 | `src/SurveyPath.cpp` | Declare 4 params with descriptors in `configure()`; remove `(10)` from constructor initializer |
-| `CMakeLists.txt` | Add test target in `BUILD_TESTING` block |
-| `package.xml` | Add `ament_cmake_ros` test depend if missing |
-| `test/test_parameters.cpp` | New: parameter default + out-of-range tests |
+| `CMakeLists.txt` | Add `find_package(ament_cmake_ros)` + `test_parameters` target in `BUILD_TESTING` block |
+| `package.xml` | No change — `ament_cmake_ros` already a `buildtool_depend` |
+| `test/test_parameters.cpp` | New: parameter default/range tests + `SwathWidth()` thresholding tests |
 
 ## Principles Self-Check
 
