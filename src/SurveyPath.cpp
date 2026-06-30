@@ -6,7 +6,10 @@
 /************************************************************/
 
 #include <iterator>
+#include <limits>
 //#include <regex>
+#include "rcl_interfaces/msg/floating_point_range.hpp"
+#include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "manda_coverage/lib_geometry/AngleUtils.h"
 #include "manda_coverage/lib_geometry/XYFormatUtilsSegl.h"
 #include "manda_coverage/RecordSwath.h"
@@ -29,8 +32,7 @@ namespace manda_coverage
 // Constructor
 
 SurveyPath::SurveyPath(NodeInterfaces node_interfaces)
- :m_swath_record(10),
-  node_interfaces_(node_interfaces),
+ :node_interfaces_(node_interfaces),
   logger_(node_interfaces.get_node_logging_interface()->get_logger()),
   clock_(node_interfaces.get_node_clock_interface()->get_clock())
 {
@@ -93,6 +95,39 @@ void SurveyPath::configure()
   if(!parameter_interface->has_parameter("lead_out_distance"))
     parameter_interface->declare_parameter("lead_out_distance", rclcpp::ParameterValue(lead_out_distance_));
   lead_out_distance_ = parameter_interface->get_parameter("lead_out_distance").as_double();
+
+  // Coverage-density tuning parameters. Declared with floating-point-range
+  // descriptors so the node rejects out-of-range values at declare/set time.
+  auto declare_bounded = [&](const std::string & name, double default_value,
+                             double from_value, double to_value,
+                             const std::string & description) -> double
+  {
+    rcl_interfaces::msg::ParameterDescriptor descriptor;
+    descriptor.description = description;
+    rcl_interfaces::msg::FloatingPointRange range;
+    range.from_value = from_value;
+    range.to_value = to_value;
+    range.step = 0.0;
+    descriptor.floating_point_range.push_back(range);
+    if(!parameter_interface->has_parameter(name))
+      parameter_interface->declare_parameter(
+        name, rclcpp::ParameterValue(default_value), descriptor);
+    return parameter_interface->get_parameter(name).as_double();
+  };
+
+  m_swath_overlap = declare_bounded("swath_overlap", 0.2, 0.0, 1.0,
+    "Fraction of swath width to overlap adjacent survey lines [0-1]");
+  m_max_bend_angle = declare_bounded("max_bend_angle", 60.0, 0.0, 90.0,
+    "Maximum bend angle between path segments, in degrees");
+  double swath_record_interval = declare_bounded("swath_record_interval", 10.0,
+    0.001, std::numeric_limits<double>::max(),
+    "Distance between swath-minimum analysis intervals, in meters");
+  double min_allowable_swath = declare_bounded("min_allowable_swath", 0.0,
+    0.0, std::numeric_limits<double>::max(),
+    "Minimum swath width treated as valid coverage, in meters");
+
+  m_swath_record.SetInterval(swath_record_interval);
+  m_swath_record.SetMinAllowableSwath(min_allowable_swath);
 
 }
 

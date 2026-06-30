@@ -68,7 +68,6 @@ private:
   
 // Configuration variables
   BoatSide m_first_swath_side = BoatSide::Stbd;
-  double m_swath_interval = 10;
   bool m_remove_in_coverage = false;
   double m_swath_overlap = 0.2;
   double m_max_bend_angle = 60;
