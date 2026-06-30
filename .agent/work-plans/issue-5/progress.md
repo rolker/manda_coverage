@@ -85,3 +85,65 @@ dependency is satisfied and work can begin immediately.
 - [ ] (suggestion) ROS conventions: mutating cached members inside the on-set (pre-set) callback applies state before the set is finalized; an atomic multi-param `set_parameters` where a later param is rejected leaves earlier mutations un-rolled-back. Idiomatic Jazzy/Rolling splits validate (on-set) from apply (`add_post_set_parameters_callback`). Acceptable to keep the single on-set callback for this node's single-knob tuning, but note the limitation — `plan.md:43`
 - [ ] (suggestion) Consequences table lists a descriptor only for `waypoint_distance_threshold_`; step 2 also adds `[0,∞)` descriptors to `lead_in_distance`/`lead_out_distance` — add them to the table for completeness (same benign effect: rejects nonsensical negatives) — `plan.md:108`
 - [ ] (suggestion) New `SurveyPathLiveParamTest` overlaps the existing `InRangeAccepted`/`OutOfRangeRejection` tests (`test_parameters.cpp:74`); ensure it adds the *state-assertion via the new getters* those lack rather than duplicating accept/reject coverage — `plan.md:72`
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 17:20 +00:00
+**By**: Claude Opus
+
+**Branch**: feature/issue-5 (4 commits: 0f2878d, b359261, 8731c01, 9c135ba)
+**PR**: none (local-first; host publishes after local review)
+
+### What was done
+Implemented the plan with the operator-chosen validate/apply split and all
+three Plan Review cleanups:
+
+- `RecordSwath.h`: added `GetMinAllowableSwath() const`; made `IntervalDist()`
+  const so the new `SurveyPath` getters can delegate from a const context.
+- `SurveyPath.cpp`:
+  - `soundings_topic`/`display_topic` declared `read_only` via a new
+    `declare_read_only_string` lambda (ROS rejects sets before any callback).
+  - The three distance params (`waypoint_distance_threshold`,
+    `lead_in_distance`, `lead_out_distance`) now use `declare_bounded` with
+    `[0, max]` ranges (lambda moved above their declarations).
+  - **on-set callback = VALIDATE only**: returns `SetParametersResult`,
+    `successful=false` with a populated `reason` on a double type mismatch;
+    mutates no state. Descriptor range violations are rejected by rclcpp first.
+  - **post-set callback = APPLY**: writes cached members
+    (`m_swath_overlap`, `m_max_bend_angle`, distance members) and calls live
+    `RecordSwath` setters (`SetInterval`, `SetMinAllowableSwath`) only after the
+    set commits — atomic-safe for multi-param sets.
+  - Both handles reset in `cleanup()`.
+- `SurveyPath.h`: added `on_set_param_callback_handle_` and
+  `post_set_param_callback_handle_` members and four const test getters
+  (`swath_overlap`, `max_bend_angle`, `swath_record_interval`,
+  `min_allowable_swath`).
+- `test_parameters.cpp`: added `InRangeSetUpdatesLiveState` (asserts getters
+  reflect new values after an accepted set — exercises the post-set apply path)
+  and `RejectedSetLeavesLiveStateUnchanged` (rejected set + state unchanged).
+  These add the state-assertion coverage the existing accept/reject tests lack.
+- `plan.md`: steps 3-4 reworded for the validate/apply split + two handles +
+  cleanup reset; consequences table now lists all three distance descriptors
+  plus the split's cleanup requirement.
+
+### Plan Review findings — all addressed
+- [x] Callback-contract contradiction — resolved by the validate/apply split
+  (on-set never claims success on failure).
+- [x] Atomic multi-param concern — adopted the post-set apply split.
+- [x] Consequences table — added `lead_in_distance`/`lead_out_distance` rows.
+- [x] Test overlap — new tests assert state via getters, not duplicate
+  accept/reject coverage.
+
+### Build & test
+- `colcon build --packages-up-to manda_coverage`: success (deps
+  marine_nav_interfaces/marine_nav_utilities built first; only pre-existing
+  unused-parameter warnings).
+- `colcon test --packages-select manda_coverage`: gtest **9/9 pass, 0 failures**
+  (7 prior + 2 new; new tests confirmed `status="run"`). The remaining
+  `colcon test-result` failures are pre-existing ament_lint debt (copyright,
+  cpplint, uncrustify, flake8, lint_cmake) on the legacy MOOS-derived code —
+  verified identical to the baseline with my changes stashed, so this PR
+  introduces no new lint failures. Issue #4 merged through the same lint state.
+
+### Next step
+Host local review (review-code), then publish with `Closes #5`.
