@@ -70,3 +70,18 @@ dependency is satisfied and work can begin immediately.
 
 ### Open questions
 - [ ] No open questions — plan is review-plan-ready.
+
+## Plan Review
+**Status**: complete
+**When**: 2026-06-30 16:58 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Plan**: `.agent/work-plans/issue-5/plan.md` at `3e84ec9`
+**PR**: PR-less (local `feature/issue-5`; no draft PR)
+**Verdict**: approve-with-suggestions
+
+### Findings
+- [ ] (suggestion) Step 3's callback contract is self-contradictory — "`successful = true` ... on any failure" — clarify: return `successful=true` on accept, `successful=false` with `reason` on type mismatch; descriptor-range rejections are produced by rclcpp *before* the callback fires, so the test's `result.successful==false` for out-of-range comes from ROS, not the callback — `plan.md:50`
+- [ ] (suggestion) ROS conventions: mutating cached members inside the on-set (pre-set) callback applies state before the set is finalized; an atomic multi-param `set_parameters` where a later param is rejected leaves earlier mutations un-rolled-back. Idiomatic Jazzy/Rolling splits validate (on-set) from apply (`add_post_set_parameters_callback`). Acceptable to keep the single on-set callback for this node's single-knob tuning, but note the limitation — `plan.md:43`
+- [ ] (suggestion) Consequences table lists a descriptor only for `waypoint_distance_threshold_`; step 2 also adds `[0,∞)` descriptors to `lead_in_distance`/`lead_out_distance` — add them to the table for completeness (same benign effect: rejects nonsensical negatives) — `plan.md:108`
+- [ ] (suggestion) New `SurveyPathLiveParamTest` overlaps the existing `InRangeAccepted`/`OutOfRangeRejection` tests (`test_parameters.cpp:74`); ensure it adds the *state-assertion via the new getters* those lack rather than duplicating accept/reject coverage — `plan.md:72`
