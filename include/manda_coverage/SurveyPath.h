@@ -50,6 +50,14 @@ public:
 
   void set_goal(const geometry_msgs::msg::PolygonStamped &goal);
 
+  // Accessors for the live-settable coverage-density parameters. Used by tests
+  // to verify that a successful parameter set propagates into cached members
+  // and live RecordSwath state.
+  double swath_overlap() const { return m_swath_overlap; }
+  double max_bend_angle() const { return m_max_bend_angle; }
+  double swath_record_interval() const { return m_swath_record.IntervalDist(); }
+  double min_allowable_swath() const { return m_swath_record.GetMinAllowableSwath(); }
+
 private:
 
   BoatSide AdvanceSide(BoatSide side);
@@ -108,6 +116,14 @@ private:
   NodeInterfaces node_interfaces_;
   rclcpp::Logger logger_;
   rclcpp::Clock::SharedPtr clock_;
+
+  // Parameter-callback handles. The on-set callback validates proposed values;
+  // the post-set callback applies committed values to cached members and live
+  // RecordSwath state. Both are reset in cleanup() to unregister on teardown.
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
+    on_set_param_callback_handle_;
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
+    post_set_param_callback_handle_;
 
   std::function<void(bool)> done_callback_;
   std::function<void(const nav_msgs::msg::Path&, int)> next_line_callback_;
