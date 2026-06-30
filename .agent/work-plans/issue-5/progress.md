@@ -169,3 +169,32 @@ Host local review (review-code), then publish with `Closes #5`.
 ### Notes
 - Static analysis: cppcheck clean; `cpplint` not installed on this host (C++ style unchecked).
 - No project-level PRINCIPLES/ADRs in repo; ADR-0008 (ROS 2 conventions) satisfied — idiomatic validate/apply split returning SetParametersResult.
+
+### Operator decision (publish checkpoint, 2026-06-30)
+Address all four suggestions before publishing, per these per-finding decisions:
+- **(1) Data race — FIX it, do not just document.** Ensure the post-set apply
+  path never runs concurrently with the odom/ping planning readers of the shared
+  members (`m_swath_overlap`, `m_max_bend_angle`, the distance members, and
+  `m_swath_record` via its setters). Pick the correct, idiomatic Jazzy mechanism
+  and **verify it actually serializes the two paths**: either (a) a `std::mutex`
+  guarding the shared members in BOTH the apply callback and the odom/ping
+  readers, or (b) placing the relevant subscriptions and the parameter-apply in a
+  single `MutuallyExclusive` callback group. Note: parameter callbacks may not
+  honor subscription callback groups — if (b) does not genuinely serialize against
+  the planning reads, use (a) the mutex. Confirm the chosen mechanism also covers
+  `m_swath_record`'s setter-mutated state.
+- **(2 + 4) DROP the vestigial on-set validate callback.** rclcpp validates type
+  and descriptor range before any on-set callback fires for these statically-typed
+  doubles, so the on-set type-check is dead code and its Phase-3 `reason` never
+  fires. Remove `add_on_set_parameters_callback` and its handle; keep ONLY the
+  `add_post_set_parameters_callback` apply path (that is where the atomicity
+  benefit lives). Add a brief comment documenting that range/type rejection (with
+  its rclcpp-generic `reason`) is handled by the descriptors, not a callback —
+  which also resolves #4 (operator-tailored reasons for range violations are not
+  achievable via callbacks since rclcpp rejects first).
+- **(3) Close the test gap.** Add const getters for `waypoint_distance_threshold`,
+  `lead_in_distance`, `lead_out_distance` and apply-path assertions: after an
+  in-range `set_parameter` on each, assert the corresponding getter reflects the
+  new value (so a wrong-member copy-paste in the apply callback would fail).
+Re-run the package build + tests (expect all to pass); then the host
+re-dispatches review-code.
