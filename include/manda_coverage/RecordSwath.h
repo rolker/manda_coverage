@@ -131,6 +131,20 @@ public:
   double IntervalDist() { return m_interval; }
 
   /**
+   * Sets the distance between subsequent analysis intervals for swath minimums.
+   * @param interval Interval distance in meters
+   */
+  void SetInterval(double interval) { m_interval = interval; }
+
+  /**
+   * Sets the minimum swath width considered valid coverage. Widths below this
+   * threshold are reported as zero by SwathWidth(), which drives the
+   * coverage-complete (all_zero) check in PathPlan.
+   * @param min_swath Minimum allowable swath width in meters
+   */
+  void SetMinAllowableSwath(double min_swath) { m_min_allowable_swath = min_swath; }
+
+  /**
    * Determines if the record has valid points for building a path.
    */
   bool ValidRecord();
