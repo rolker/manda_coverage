@@ -147,3 +147,25 @@ three Plan Review cleanups:
 
 ### Next step
 Host local review (review-code), then publish with `Closes #5`.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-06-30 17:22 +00:00
+**By**: Claude Code Agent (Claude Opus 4.6)
+**Verdict**: approved
+
+**Branch**: feature/issue-5 at `3f50f92`
+**Mode**: pre-push
+**Depth**: Standard (reason: ~195 LOC across 4 C++ files + project plan.md override-trigger; no Deep promotion triggers)
+**Must-fix**: 0 | **Suggestions**: 4
+**Round**: 1 | **Ship**: recommended — no must-fix; builds, 9/9 tests pass, plan faithfully implemented; suggestions can be applied in a quick pass or tracked.
+
+### Findings
+- [ ] (suggestion) Data race: post-set callback (param-service default group) writes m_swath_overlap/m_max_bend_angle/distance members/m_swath_record concurrently with ping/odom group reads under MultiThreadedExecutor — benign (independent aligned scalar doubles) but formal UB; use atomic/mutex/shared group or document — `src/SurveyPath.cpp:178`
+- [ ] (suggestion) On-set VALIDATE callback type-check is unreachable (statically-typed doubles → rclcpp rejects type mismatch before callback); the Phase-3 `reason` it claims to produce never fires — drop or strengthen — `src/SurveyPath.cpp:156`
+- [ ] (suggestion) Three live params (waypoint_distance_threshold, lead_in_distance, lead_out_distance) have no getter/apply-path test; a wrong-member copy-paste would pass all tests — add getters + assertions — `test/test_parameters.cpp:110`
+- [ ] (suggestion) Range-rejection `reason` is rclcpp-generic, not operator-tailored, despite the design comment implying operator-facing diagnostics — `src/SurveyPath.cpp:152`
+
+### Notes
+- Static analysis: cppcheck clean; `cpplint` not installed on this host (C++ style unchecked).
+- No project-level PRINCIPLES/ADRs in repo; ADR-0008 (ROS 2 conventions) satisfied — idiomatic validate/apply split returning SetParametersResult.
