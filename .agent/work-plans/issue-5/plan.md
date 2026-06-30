@@ -8,16 +8,23 @@ https://github.com/rolker/manda_coverage/issues/5
 
 Issue #4 (PR #7, now merged) declared all coverage-density parameters with
 `ParameterDescriptor` floating-point-range constraints. Those descriptors enable
-ROS 2 to reject out-of-range values at the node layer — but there is no
-`add_on_set_parameters_callback`, so accepted `ros2 param set` calls never
+ROS 2 to reject out-of-range values at the node layer — but there are no
+parameter-set callbacks, so accepted `ros2 param set` calls never
 propagate into the cached member variables or live `RecordSwath` state.
-This PR wires the callback so operators can tune parameters between survey lines
-without restarting the node.
+This PR wires a validate/apply callback pair so operators can tune parameters
+between survey lines without restarting the node.
+
+Key design decision (operator-chosen): **split validate from apply** using the
+idiomatic Jazzy/Rolling pattern — an `add_on_set_parameters_callback` that only
+validates the proposed values (no mutation), and an
+`add_post_set_parameters_callback` that applies committed values. This is
+atomic-safe for multi-parameter sets: a later rejected value cannot leave
+earlier members half-applied.
 
 Key design decision (from review-issue, open-action): **setter over re-read per
 cycle** for `RecordSwath.SetInterval()`. `RecordSwath` already has public
-`SetInterval()` and `SetMinAllowableSwath()` setters; the callback calls them
-directly. `PathPlan` is constructed fresh in `CreateNewPath()` from cached
+`SetInterval()` and `SetMinAllowableSwath()` setters; the post-set apply
+callback calls them directly. `PathPlan` is constructed fresh in `CreateNewPath()` from cached
 members each time, so updating `m_swath_overlap` / `m_max_bend_angle` is
 sufficient — no `PathPlan` setter is needed.
 
@@ -39,22 +46,35 @@ is invoked.
    `from_value = 0.0, to_value = std::numeric_limits<double>::max()`. This
    gives ROS 2 automatic range enforcement and uniform declaration style.
 
-3. **Register `add_on_set_parameters_callback` in `configure()`** — After all
-   parameter declarations, call
-   `parameter_interface->add_on_set_parameters_callback(...)` with a lambda
-   that iterates `const std::vector<rclcpp::Parameter>&` and, for each
-   recognised name, updates the cached member and/or live object. Return
-   `rcl_interfaces::msg::SetParametersResult` with `successful = true` and a
-   populated `reason` string on any failure (the Phase 3 marine_control bridge
-   reads `reason` for operator-facing diagnostics). The descriptor-range check
-   is enforced by ROS 2 before the callback fires, so the callback only needs
-   to handle the live-state update — but still populates `reason` on any
-   unexpected type mismatch.
+3. **Split validate (on-set) from apply (post-set) in `configure()`** — After
+   all parameter declarations, register two callbacks (the idiomatic
+   Jazzy/Rolling pattern, which is atomic-safe for multi-parameter sets):
 
-4. **Store the callback handle in `SurveyPath.h`** — Add
+   - **`add_on_set_parameters_callback` = VALIDATE only.** Iterates the proposed
+     `const std::vector<rclcpp::Parameter>&` and returns
+     `rcl_interfaces::msg::SetParametersResult` — `successful = true` on accept,
+     or `successful = false` with a populated `reason` string on a type
+     mismatch. It does **not** write any cached member or call a `RecordSwath`
+     setter. Descriptor floating-point-range rejections are produced by rclcpp
+     *before* this callback fires, so out-of-range sets are already rejected
+     upstream; the test's `result.successful == false` for out-of-range comes
+     from ROS, not this callback. The `reason` string is read by the Phase 3
+     marine_control bridge for operator-facing diagnostics.
+   - **`add_post_set_parameters_callback` = APPLY.** Runs *after* the set is
+     committed. Iterates the committed `const std::vector<rclcpp::Parameter>&`
+     and, for each recognised name, updates the cached member
+     (`m_swath_overlap`, `m_max_bend_angle`, the three distance members) and/or
+     calls the live `RecordSwath` setter (`SetInterval`,
+     `SetMinAllowableSwath`). This is where live state actually changes — and,
+     because it runs only on a committed set, a multi-parameter set whose later
+     value is rejected never leaves earlier members half-applied.
+
+4. **Store both callback handles in `SurveyPath.h`** — Add
    `rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
-   param_callback_handle_` as a private member. Reset it in `cleanup()` so the
-   callback is unregistered during lifecycle teardown.
+   on_set_param_callback_handle_` and
+   `rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
+   post_set_param_callback_handle_` as private members. Reset **both** in
+   `cleanup()` so the callbacks are unregistered during lifecycle teardown.
 
 5. **Add `GetMinAllowableSwath()` getter to `RecordSwath.h`** — The existing
    `SetMinAllowableSwath()` has no paired getter; add
@@ -69,20 +89,21 @@ is invoked.
    `m_swath_record.IntervalDist()`), and `double min_allowable_swath() const`
    (delegates to `m_swath_record.GetMinAllowableSwath()`).
 
-7. **Extend `test_parameters.cpp`** — Add a new fixture/test group
-   `SurveyPathLiveParamTest` that sets each live parameter in-range, confirms
-   `result.successful == true`, and asserts the cached member/live-object
-   value changed via the new getters. Add companion out-of-range rejection
-   tests that confirm `result.successful == false` and the state is unchanged.
-   Also test each distance param in-range/out-of-range. No new test file —
-   extend the existing one per the review-issue consequence note.
+7. **Extend `test_parameters.cpp`** — Add two tests that go beyond the existing
+   `InRangeAccepted`/`OutOfRangeRejection` (which only assert
+   `SetParametersResult`) by asserting state via the new getters:
+   `InRangeSetUpdatesLiveState` sets each live parameter in-range and asserts
+   the cached member / live `RecordSwath` value changed (proving the post-set
+   apply callback fired), and `RejectedSetLeavesLiveStateUnchanged` confirms an
+   out-of-range set is rejected *and* leaves the getter value untouched. No new
+   test file — extend the existing one per the review-issue consequence note.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/SurveyPath.cpp` | Mark `soundings_topic`/`display_topic` read-only; use `declare_bounded` for distance params; add `add_on_set_parameters_callback` with member-update logic |
-| `include/manda_coverage/SurveyPath.h` | Add `param_callback_handle_` member; add four const getter methods |
+| `src/SurveyPath.cpp` | Mark `soundings_topic`/`display_topic` read-only; use `declare_bounded` for distance params; add on-set (validate) + post-set (apply) callbacks; reset both handles in `cleanup()` |
+| `include/manda_coverage/SurveyPath.h` | Add `on_set_param_callback_handle_` and `post_set_param_callback_handle_` members; add four const getter methods |
 | `include/manda_coverage/RecordSwath.h` | Add `GetMinAllowableSwath()` getter |
 | `test/test_parameters.cpp` | Extend with live-update and rejection tests |
 
@@ -107,8 +128,11 @@ is invoked.
 | If we change... | Also update... | Included in plan? |
 |---|---|---|
 | `soundings_topic`/`display_topic` declared `read_only` | Any operator scripts that attempt `ros2 param set` on these will start failing — call out in PR description | No (PR description) |
-| `waypoint_distance_threshold_` gets a descriptor | Existing nodes that set this param outside `[0, ∞)` will be rejected — only zero/negative values, which are nonsensical anyway | Yes (descriptor added; implicit change) |
+| `waypoint_distance_threshold` gets a `[0, ∞)` descriptor | Existing nodes that set this param to a negative value will be rejected — negatives are nonsensical anyway | Yes (descriptor added; implicit change) |
+| `lead_in_distance` gets a `[0, ∞)` descriptor | Same benign effect — negative lead-in values rejected | Yes (descriptor added; implicit change) |
+| `lead_out_distance` gets a `[0, ∞)` descriptor | Same benign effect — negative lead-out values rejected | Yes (descriptor added; implicit change) |
 | `GetMinAllowableSwath()` added to `RecordSwath` | None — pure addition | Yes |
+| Validate/apply split (on-set + post-set callbacks) | Both handles must be reset in `cleanup()` so they unregister on lifecycle teardown | Yes (step 4) |
 
 ## Open Questions
 
