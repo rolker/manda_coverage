@@ -45,13 +45,15 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn MandaC
   // Deadlock analysis (issue #5 m_param_mutex + ControlServer): an inbound
   // ControlValue triggers ControlServer::on_change -> node->set_parameter, which
   // synchronously fires the post-set apply callback that takes m_param_mutex.
-  // This chain cannot deadlock: on_change runs in the ControlServer's own
-  // dedicated mutually-exclusive callback group (control_server.hpp threading
-  // contract), while the post-set apply runs in the parameter-service group.
-  // Neither re-enters the other -- the apply callback only copies validated
-  // values into cached members / RecordSwath and never calls set_parameter or
-  // touches the ControlServer -- so there is no lock-order inversion and
-  // m_param_mutex is the only lock held across the apply.
+  // The apply runs inline on on_change's own thread (rclcpp invokes post-set
+  // callbacks synchronously inside set_parameter; it is not a separate
+  // callback-group dispatch), so m_param_mutex is acquired and released within
+  // that one call. This chain cannot deadlock: the apply callback only copies
+  // validated values into cached members / RecordSwath and never calls
+  // set_parameter or re-enters the ControlServer, so m_param_mutex is the only
+  // lock held across it and there is no lock-order inversion. With the
+  // SingleThreadedExecutor (main.cpp) there is moreover no concurrency between
+  // these lifecycle bind/reset transitions and the server's own callbacks.
   marine_control::ControlServerOptions opts;
   opts.device_name = "Manda Coverage";
   control_server_ = std::make_unique<marine_control::ControlServer>(this, opts);
