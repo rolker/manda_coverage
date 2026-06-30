@@ -119,8 +119,12 @@ void SurveyPath::configure()
     return parameter_interface->get_parameter(name).as_double();
   };
 
+  // Lower bound is a small positive epsilon, not 0.0: a zero threshold makes the
+  // waypoint-reached checks in odomCallback (distance < threshold) never fire,
+  // stalling transit->survey/survey->transit transitions. 0.1 m floors it below
+  // any realistic survey threshold while keeping it strictly positive.
   waypoint_distance_threshold_ = declare_bounded("waypoint_distance_threshold",
-    waypoint_distance_threshold_, 0.0, std::numeric_limits<double>::max(),
+    waypoint_distance_threshold_, 0.1, std::numeric_limits<double>::max(),
     "Distance threshold to consider a waypoint reached, in meters");
   lead_in_distance_ = declare_bounded("lead_in_distance",
     lead_in_distance_, 0.0, std::numeric_limits<double>::max(),

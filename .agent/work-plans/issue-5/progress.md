@@ -240,7 +240,7 @@ Lifecycle: **Implementation** → **review-code** (re-review the fixes). Hand of
 
 ### Findings
 - [x] (must-fix) `set_goal()` reads live-settable `lead_in_distance_`/`lead_out_distance_` (via `DetermineStartAndTurn`→`extendPathForLeadInOut`) and mutates `m_swath_record` without `m_param_mutex`; runs in the action-server default callback group (no group on `create_server`; MultiThreadedExecutor) concurrent with the param-apply writer — same-location data race the round-1 mutex does not cover. Fix: lock `m_param_mutex` at top of `set_goal()` (callees don't re-lock). Cross-pass confirmed (Lens A + Lens B) — `src/SurveyPath.cpp:284`
-- [ ] (suggestion) `waypoint_distance_threshold` inclusive lower bound `0.0` allows a value that makes the waypoint-reached checks never fire (stalls transitions); consider an epsilon lower bound — `src/SurveyPath.cpp:122`
+- [x] (suggestion) `waypoint_distance_threshold` inclusive lower bound `0.0` allows a value that makes the waypoint-reached checks never fire (stalls transitions); consider an epsilon lower bound — `src/SurveyPath.cpp:122`
 - [ ] (suggestion) plan.md Context synced to post-set-only, but Files-to-Change/ADR tables + step 6 still reference the dropped on-set callback / "four getters" (seven added) — `.agent/work-plans/issue-5/plan.md:102`
 
 ### Notes
