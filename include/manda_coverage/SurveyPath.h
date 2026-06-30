@@ -8,6 +8,8 @@
 #ifndef SurveyPath_HEADER
 #define SurveyPath_HEADER
 
+#include <mutex>
+
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/node_interfaces/node_interfaces.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
@@ -49,6 +51,17 @@ public:
   void set_done_callback(std::function<void(bool)> done_callback);
 
   void set_goal(const geometry_msgs::msg::PolygonStamped &goal);
+
+  // Accessors for the live-settable coverage-density parameters. Used by tests
+  // to verify that a successful parameter set propagates into cached members
+  // and live RecordSwath state.
+  double swath_overlap() const { return m_swath_overlap; }
+  double max_bend_angle() const { return m_max_bend_angle; }
+  double swath_record_interval() const { return m_swath_record.IntervalDist(); }
+  double min_allowable_swath() const { return m_swath_record.GetMinAllowableSwath(); }
+  double waypoint_distance_threshold() const { return waypoint_distance_threshold_; }
+  double lead_in_distance() const { return lead_in_distance_; }
+  double lead_out_distance() const { return lead_out_distance_; }
 
 private:
 
@@ -108,6 +121,24 @@ private:
   NodeInterfaces node_interfaces_;
   rclcpp::Logger logger_;
   rclcpp::Clock::SharedPtr clock_;
+
+  // Parameter-callback handle. The post-set callback applies committed values
+  // to cached members and live RecordSwath state; it is reset in cleanup() to
+  // unregister on teardown. Type/range rejection is enforced by the parameter
+  // descriptors (rclcpp validates before the set commits), so no on-set
+  // validation callback is registered.
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
+    post_set_param_callback_handle_;
+
+  // Serializes the post-set apply path (param-service callback group) against
+  // the planning readers — pingCallback/odomCallback and the action-server
+  // set_goal — which run in other callback group(s) concurrently with the apply
+  // under a MultiThreadedExecutor. (ping and odom share one MutuallyExclusive
+  // group, so the executor already serializes them with each other; this mutex
+  // is about the param-apply-vs-planning races.) Guards the cached tuning
+  // members (m_swath_overlap, m_max_bend_angle, the distance members) and
+  // m_swath_record's setter-mutated state.
+  std::mutex m_param_mutex;
 
   std::function<void(bool)> done_callback_;
   std::function<void(const nav_msgs::msg::Path&, int)> next_line_callback_;

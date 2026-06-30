@@ -128,7 +128,7 @@ public:
   /**
    * The distance between subsequent analysis intervals for swath minimums.
    */
-  double IntervalDist() { return m_interval; }
+  double IntervalDist() const { return m_interval; }
 
   /**
    * Sets the distance between subsequent analysis intervals for swath minimums.
@@ -143,6 +143,12 @@ public:
    * @param min_swath Minimum allowable swath width in meters
    */
   void SetMinAllowableSwath(double min_swath) { m_min_allowable_swath = min_swath; }
+
+  /**
+   * Gets the minimum swath width considered valid coverage.
+   * @return Minimum allowable swath width in meters
+   */
+  double GetMinAllowableSwath() const { return m_min_allowable_swath; }
 
   /**
    * Determines if the record has valid points for building a path.

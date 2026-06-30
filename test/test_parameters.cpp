@@ -23,6 +23,7 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <limits>
 #include <memory>
 #include <string>
@@ -105,6 +106,82 @@ TEST_F(SurveyPathParameterTest, InRangeAccepted)
   accept("max_bend_angle", 45.0);
   accept("swath_record_interval", 25.0);
   accept("min_allowable_swath", 3.0);
+}
+
+// ---------------------------------------------------------------------------
+// SurveyPath live-parameter update tests
+//
+// Unlike InRangeAccepted/OutOfRangeRejection above, which only assert the
+// SetParametersResult, these verify that an accepted set actually propagates
+// into the cached member / live RecordSwath state via the post-set callback,
+// and that a rejected set leaves that state untouched.
+// ---------------------------------------------------------------------------
+
+TEST_F(SurveyPathParameterTest, InRangeSetUpdatesLiveState)
+{
+  // Defaults established by configure().
+  ASSERT_DOUBLE_EQ(survey_path_->swath_overlap(), 0.2);
+  ASSERT_DOUBLE_EQ(survey_path_->max_bend_angle(), 60.0);
+  ASSERT_DOUBLE_EQ(survey_path_->swath_record_interval(), 10.0);
+  ASSERT_DOUBLE_EQ(survey_path_->min_allowable_swath(), 0.0);
+  ASSERT_DOUBLE_EQ(survey_path_->waypoint_distance_threshold(), 4.0);
+  ASSERT_DOUBLE_EQ(survey_path_->lead_in_distance(), 15.0);
+  ASSERT_DOUBLE_EQ(survey_path_->lead_out_distance(), 5.0);
+
+  auto set = [&](const std::string & name, double value)
+    {
+      auto result = node_->set_parameter(rclcpp::Parameter(name, value));
+      EXPECT_TRUE(result.successful)
+        << name << " unexpectedly rejected in-range value " << value;
+    };
+
+  // Cached members updated by the post-set callback.
+  set("swath_overlap", 0.5);
+  EXPECT_DOUBLE_EQ(survey_path_->swath_overlap(), 0.5);
+
+  set("max_bend_angle", 45.0);
+  EXPECT_DOUBLE_EQ(survey_path_->max_bend_angle(), 45.0);
+
+  // Distance members updated by the post-set callback. Asserting each via its
+  // own getter would catch a wrong-member copy-paste in the apply callback.
+  set("waypoint_distance_threshold", 7.5);
+  EXPECT_DOUBLE_EQ(survey_path_->waypoint_distance_threshold(), 7.5);
+
+  set("lead_in_distance", 20.0);
+  EXPECT_DOUBLE_EQ(survey_path_->lead_in_distance(), 20.0);
+
+  set("lead_out_distance", 8.0);
+  EXPECT_DOUBLE_EQ(survey_path_->lead_out_distance(), 8.0);
+
+  // Live RecordSwath setters invoked by the post-set callback.
+  set("swath_record_interval", 25.0);
+  EXPECT_DOUBLE_EQ(survey_path_->swath_record_interval(), 25.0);
+
+  set("min_allowable_swath", 3.0);
+  EXPECT_DOUBLE_EQ(survey_path_->min_allowable_swath(), 3.0);
+}
+
+TEST_F(SurveyPathParameterTest, RejectedSetLeavesLiveStateUnchanged)
+{
+  auto reject_keeps_state = [&](const std::string & name, double value,
+                                std::function<double()> getter)
+    {
+      double before = getter();
+      auto result = node_->set_parameter(rclcpp::Parameter(name, value));
+      EXPECT_FALSE(result.successful)
+        << name << " unexpectedly accepted out-of-range value " << value;
+      EXPECT_DOUBLE_EQ(getter(), before)
+        << name << " state changed despite rejected set";
+    };
+
+  reject_keeps_state("swath_overlap", 1.1,
+    [&] { return survey_path_->swath_overlap(); });
+  reject_keeps_state("max_bend_angle", 90.5,
+    [&] { return survey_path_->max_bend_angle(); });
+  reject_keeps_state("swath_record_interval", 0.0,
+    [&] { return survey_path_->swath_record_interval(); });
+  reject_keeps_state("min_allowable_swath", -1.0,
+    [&] { return survey_path_->min_allowable_swath(); });
 }
 
 // ---------------------------------------------------------------------------

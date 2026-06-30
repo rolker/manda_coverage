@@ -7,6 +7,7 @@
 
 #include <iterator>
 #include <limits>
+#include <mutex>
 //#include <regex>
 #include "rcl_interfaces/msg/floating_point_range.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
@@ -48,8 +49,23 @@ void SurveyPath::configure()
 
   auto parameter_interface = node_interfaces_.get_node_parameters_interface();
 
-  if(!parameter_interface->has_parameter("soundings_topic"))
-    parameter_interface->declare_parameter("soundings_topic", rclcpp::ParameterValue("soundings"));
+  // Topic names are wired into subscriptions/publishers at configure time, so
+  // they are restart-only. Marking them read_only makes ROS 2 reject any
+  // `ros2 param set` on them before the on-set callback is ever invoked.
+  auto declare_read_only_string = [&](const std::string & name,
+                                      const std::string & default_value,
+                                      const std::string & description)
+  {
+    rcl_interfaces::msg::ParameterDescriptor descriptor;
+    descriptor.description = description;
+    descriptor.read_only = true;
+    if(!parameter_interface->has_parameter(name))
+      parameter_interface->declare_parameter(
+        name, rclcpp::ParameterValue(default_value), descriptor);
+  };
+
+  declare_read_only_string("soundings_topic", "soundings",
+    "Topic carrying incoming sonar soundings (read-only; restart to change)");
 
   std::string soundings_topic = parameter_interface->get_parameter("soundings_topic").as_string();
 
@@ -74,8 +90,8 @@ void SurveyPath::configure()
     subscription_options
   );
 
-  if(!parameter_interface->has_parameter("display_topic"))
-    parameter_interface->declare_parameter("display_topic", rclcpp::ParameterValue(""));
+  declare_read_only_string("display_topic", "",
+    "Topic for swath/path visualization markers (read-only; restart to change)");
 
   std::string display_topic = parameter_interface->get_parameter("display_topic").as_string();
 
@@ -83,18 +99,6 @@ void SurveyPath::configure()
     m_display_publisher = rclcpp::create_publisher<visualization_msgs::msg::Marker>(node_interfaces_, display_topic, 10);
   else
     m_display_publisher.reset();
-
-  if(!parameter_interface->has_parameter("waypoint_distance_threshold"))
-    parameter_interface->declare_parameter("waypoint_distance_threshold", rclcpp::ParameterValue(waypoint_distance_threshold_));
-  waypoint_distance_threshold_ = parameter_interface->get_parameter("waypoint_distance_threshold").as_double();
-
-  if(!parameter_interface->has_parameter("lead_in_distance"))
-    parameter_interface->declare_parameter("lead_in_distance", rclcpp::ParameterValue(lead_in_distance_));
-  lead_in_distance_ = parameter_interface->get_parameter("lead_in_distance").as_double();
-
-  if(!parameter_interface->has_parameter("lead_out_distance"))
-    parameter_interface->declare_parameter("lead_out_distance", rclcpp::ParameterValue(lead_out_distance_));
-  lead_out_distance_ = parameter_interface->get_parameter("lead_out_distance").as_double();
 
   // Coverage-density tuning parameters. Declared with floating-point-range
   // descriptors so the node rejects out-of-range values at declare/set time.
@@ -115,6 +119,20 @@ void SurveyPath::configure()
     return parameter_interface->get_parameter(name).as_double();
   };
 
+  // Lower bound is a small positive epsilon, not 0.0: a zero threshold makes the
+  // waypoint-reached checks in odomCallback (distance < threshold) never fire,
+  // stalling transit->survey/survey->transit transitions. 0.1 m floors it below
+  // any realistic survey threshold while keeping it strictly positive.
+  waypoint_distance_threshold_ = declare_bounded("waypoint_distance_threshold",
+    waypoint_distance_threshold_, 0.1, std::numeric_limits<double>::max(),
+    "Distance threshold to consider a waypoint reached, in meters");
+  lead_in_distance_ = declare_bounded("lead_in_distance",
+    lead_in_distance_, 0.0, std::numeric_limits<double>::max(),
+    "Lead-in distance added to the beginning of a survey line, in meters");
+  lead_out_distance_ = declare_bounded("lead_out_distance",
+    lead_out_distance_, 0.0, std::numeric_limits<double>::max(),
+    "Lead-out distance added to the end of a survey line, in meters");
+
   m_swath_overlap = declare_bounded("swath_overlap", 0.2, 0.0, 1.0,
     "Fraction of swath width to overlap adjacent survey lines [0-1]");
   m_max_bend_angle = declare_bounded("max_bend_angle", 60.0, 0.0, 90.0,
@@ -128,6 +146,43 @@ void SurveyPath::configure()
 
   m_swath_record.SetInterval(swath_record_interval);
   m_swath_record.SetMinAllowableSwath(min_allowable_swath);
+
+  // Type and range rejection are enforced by the parameter descriptors above:
+  // rclcpp validates the proposed value (correct type, within the declared
+  // floating-point range) and rejects it with a generic `reason` *before* any
+  // callback fires. There is therefore no on-set validation callback — for
+  // these statically-typed, range-bounded doubles it would be dead code.
+  //
+  // APPLY: runs after the set is committed, so cached members and live
+  // RecordSwath state are updated only once the whole set has been accepted.
+  // This apply runs in the parameter-service callback group; the lock
+  // serializes it against the planning readers (ping/odomCallback and the
+  // action-server set_goal), which run in their own callback group(s)
+  // concurrently under a MultiThreadedExecutor.
+  post_set_param_callback_handle_ =
+    parameter_interface->add_post_set_parameters_callback(
+      [this](const std::vector<rclcpp::Parameter> & parameters)
+      {
+        std::lock_guard<std::mutex> lock(m_param_mutex);
+        for(const auto & parameter : parameters)
+        {
+          const auto & name = parameter.get_name();
+          if(name == "waypoint_distance_threshold")
+            waypoint_distance_threshold_ = parameter.as_double();
+          else if(name == "lead_in_distance")
+            lead_in_distance_ = parameter.as_double();
+          else if(name == "lead_out_distance")
+            lead_out_distance_ = parameter.as_double();
+          else if(name == "swath_overlap")
+            m_swath_overlap = parameter.as_double();
+          else if(name == "max_bend_angle")
+            m_max_bend_angle = parameter.as_double();
+          else if(name == "swath_record_interval")
+            m_swath_record.SetInterval(parameter.as_double());
+          else if(name == "min_allowable_swath")
+            m_swath_record.SetMinAllowableSwath(parameter.as_double());
+        }
+      });
 }
 
 void SurveyPath::activate()
@@ -143,6 +198,7 @@ void SurveyPath::cleanup()
   m_ping_subscription.reset();
   m_display_publisher.reset();
   m_odom_subscription.reset();
+  post_set_param_callback_handle_.reset();
 }
 
 void SurveyPath::set_next_line_callback(std::function<void(const nav_msgs::msg::Path&, int)> next_line_callback)
@@ -158,6 +214,16 @@ void SurveyPath::set_done_callback(std::function<void(bool)> done_callback)
 
 void SurveyPath::set_goal(const geometry_msgs::msg::PolygonStamped &goal)
 {
+  // Held for the whole callback: it reads lead_in_distance_/lead_out_distance_
+  // (via DetermineStartAndTurn -> extendPathForLeadInOut) and mutates
+  // m_swath_record (SetOutputSide, ResetLine), all of which the post-set apply
+  // callback updates from another callback group. set_goal runs in the
+  // action-server's default callback group, concurrent with that apply path
+  // under a MultiThreadedExecutor, so it must serialize against it too. The
+  // callees reached from here (DetermineStartAndTurn, extendPathForLeadInOut,
+  // sendPath) must NOT re-lock — the mutex is non-recursive.
+  std::lock_guard<std::mutex> lock(m_param_mutex);
+
   RCLCPP_INFO_STREAM(logger_, "Goal received");
 
   if(goal.polygon.points.empty())
@@ -232,6 +298,14 @@ void SurveyPath::set_goal(const geometry_msgs::msg::PolygonStamped &goal)
 
 void SurveyPath::odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg)
 {
+  // Held for the whole callback: it reads waypoint_distance_threshold_ and,
+  // via CreateNewPath, the swath_overlap/max_bend_angle/lead-distance members
+  // and m_swath_record — all mutated by the post-set apply callback in another
+  // callback group. The lock serializes against that apply path. Helpers reached
+  // from here (CreateNewPath, extendPathForLeadInOut) must NOT re-lock — the
+  // mutex is non-recursive.
+  std::lock_guard<std::mutex> lock(m_param_mutex);
+
   const auto& odom = *odom_msg;
   current_odom_ = odom;
 
@@ -265,6 +339,11 @@ void SurveyPath::odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg
 
 void SurveyPath::pingCallback(const sensor_msgs::msg::PointCloud2::SharedPtr ping)
 {
+  // Held for the whole callback: it mutates and reads m_swath_record
+  // (AddRecord, SwathOuterPts), whose interval/min-swath thresholds the
+  // post-set apply callback updates from another callback group. Serializes
+  // against that apply path.
+  std::lock_guard<std::mutex> lock(m_param_mutex);
 
   RCLCPP_DEBUG_STREAM_THROTTLE(logger_, *clock_, 1000, "Ping!" << " recording: " << m_recording << " state: " << (m_state==transit?"transit":"survey") << " x: " << current_odom_.pose.pose.position.x << " y: " << current_odom_.pose.pose.position.y);
 
