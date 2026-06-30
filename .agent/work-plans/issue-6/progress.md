@@ -189,10 +189,10 @@ carry `Closes #6`.
 **Round**: 1 | **Ship**: continue — a genuine concurrency-correctness concern (race under the production MultiThreadedExecutor) warrants address-findings + re-review before push.
 
 ### Findings
-- [ ] (must-fix) ControlServer construct/bind (`on_activate`) and reset (`on_deactivate`/`on_cleanup`/`on_shutdown`) run while the node spins on a `MultiThreadedExecutor` (`main.cpp:17`), violating `control_server.hpp`'s "bind before spinning / destroy only when not spinning" contract — the server's own MutuallyExclusive callback group can run on a different thread than the lifecycle transitions, racing the unsynchronized `bindings_` map during bind and racing timer/sub teardown against an in-flight heartbeat during reset (UB as shipped). Fix e.g. via SingleThreadedExecutor or shared callback group. — `src/action_server.cpp:55-64,76,88,101`
-- [ ] (suggestion) Deadlock-analysis comment misdescribes the mechanism: the post-set apply (`add_post_set_parameters_callback`, `SurveyPath.cpp:162`) runs synchronously inline on `on_change`'s thread, not a separate "parameter-service group"; conclusion (no deadlock) holds but the comment asserts non-existent thread-separation and omits the real bind/teardown race. — `src/action_server.cpp:44-54`
-- [ ] (suggestion) Lifecycle test uses SingleThreadedExecutor and transitions before `add_node`, so it cannot reproduce the production MTExecutor race or the deactivate→activate re-bind path; add an MT-executor / re-activation variant. — `test/test_control_server_lifecycle.cpp:90-94`
-- [ ] (suggestion) Single `spin_some()` before snapshotting `count_at_deactivate` may not drain a RELIABLE heartbeat in transit (minor flakiness; errs toward false failure, not false pass). — `test/test_control_server_lifecycle.cpp:127-138`
+- [x] (must-fix) ControlServer construct/bind (`on_activate`) and reset (`on_deactivate`/`on_cleanup`/`on_shutdown`) run while the node spins on a `MultiThreadedExecutor` (`main.cpp:17`), violating `control_server.hpp`'s "bind before spinning / destroy only when not spinning" contract — the server's own MutuallyExclusive callback group can run on a different thread than the lifecycle transitions, racing the unsynchronized `bindings_` map during bind and racing timer/sub teardown against an in-flight heartbeat during reset (UB as shipped). Fix e.g. via SingleThreadedExecutor or shared callback group. — `src/action_server.cpp:55-64,76,88,101`
+- [x] (suggestion) Deadlock-analysis comment misdescribes the mechanism: the post-set apply (`add_post_set_parameters_callback`, `SurveyPath.cpp:162`) runs synchronously inline on `on_change`'s thread, not a separate "parameter-service group"; conclusion (no deadlock) holds but the comment asserts non-existent thread-separation and omits the real bind/teardown race. — `src/action_server.cpp:44-54`
+- [x] (suggestion) Lifecycle test uses SingleThreadedExecutor and transitions before `add_node`, so it cannot reproduce the production MTExecutor race or the deactivate→activate re-bind path; add an MT-executor / re-activation variant. — `test/test_control_server_lifecycle.cpp:90-94`
+- [x] (suggestion) Single `spin_some()` before snapshotting `count_at_deactivate` may not drain a RELIABLE heartbeat in transit (minor flakiness; errs toward false failure, not false pass). — `test/test_control_server_lifecycle.cpp:127-138`
 
 ### Operator decision (round 1, 2026-06-30)
 Fix the must-fix via **SingleThreadedExecutor in manda** and address all 3 suggestions:
@@ -227,3 +227,66 @@ Fix the must-fix via **SingleThreadedExecutor in manda** and address all 3 sugge
   gap (the header recommends `on_activate` construction but the server isn't MT-safe
   while spinning) — address-findings need not file it.
 Re-run the package build + tests (expect all pass); host re-dispatches review-code.
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 19:11 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Branch**: feature/issue-6 at `a5f92c8`
+**Addressed**: Local Review (Pre-Push) (2026-06-30 18:55 +00:00, branch `feature/issue-6` at `88e9578`)
+**Commits**:
+- `b21d767` fix: serialize ControlServer lifecycle via SingleThreadedExecutor (#6)
+- `f765a4d` docs: correct ControlServer deadlock-analysis comment (#6)
+- `ac2a1b2` test: drain in-flight heartbeat before deactivate baseline (#6)
+- `8af1447` test: exercise deactivate->activate ControlServer re-bind path (#6)
+- `a5f92c8` docs: sync plan with SingleThreadedExecutor + re-bind test (#6)
+- (this entry) progress
+
+Addressed all four findings from the pre-push review, following the operator
+decision (SingleThreadedExecutor in manda; address all three suggestions).
+
+### Actions
+- [x] (must-fix) ControlServer bind/reset raced the server's own callbacks under the
+  `MultiThreadedExecutor` — `src/main.cpp` now spins on a
+  `rclcpp::executors::SingleThreadedExecutor`, so lifecycle transitions
+  (construct/bind in `on_activate`, `reset()` in `on_deactivate`/`on_cleanup`/
+  `on_shutdown`) can never run concurrently with the server's timer/change-sub
+  callbacks. The `bindings_` bind race and the timer/sub-teardown-vs-heartbeat race
+  are both structurally eliminated. `m_param_mutex` (#5) is **kept** defensively;
+  the now-stale "MultiThreadedExecutor" rationale comments in
+  `include/manda_coverage/SurveyPath.h` and `src/SurveyPath.cpp` (the post-set apply
+  and `set_goal` notes) were updated to state the node is now single-threaded and
+  the mutex guards the param-apply-vs-planning invariant. — `src/main.cpp:16`,
+  `src/SurveyPath.cpp:156-161,217-223`, `include/manda_coverage/SurveyPath.h:133-141`
+- [x] (suggestion) Deadlock-analysis comment corrected — `src/action_server.cpp` now
+  states the post-set apply runs **synchronously inline on `on_change`'s thread**
+  (rclcpp fires post-set callbacks inside `set_parameter`, not via a separate
+  "parameter-service group"), the conclusion (no deadlock, single lock held) holds,
+  and notes the SingleThreadedExecutor removes lifecycle/callback concurrency. — `src/action_server.cpp:45-56`
+- [x] (suggestion) Lifecycle test now exercises the deactivate→activate re-bind path —
+  after the deactivate "heartbeat stops" check, the test re-activates and asserts the
+  `ControlSet` heartbeat resumes with the seven re-bound knobs (`group=="Coverage"`).
+  Kept on a `SingleThreadedExecutor` to match production (no MT variant — prod is now
+  single-threaded). — `test/test_control_server_lifecycle.cpp:156-181`
+- [x] (suggestion) Heartbeat drain fixed — the pre-deactivate baseline
+  (`count_at_deactivate`) is now captured only after a bounded `spin_some` quiescence
+  loop (settle window + 2s deadline), so an in-flight RELIABLE heartbeat cannot read as
+  a spurious "heartbeat continued" later. — `test/test_control_server_lifecycle.cpp:135-149`
+
+### Build & test
+- `colcon build --packages-up-to manda_coverage` — clean (only pre-existing
+  unused-parameter warnings in legacy code).
+- gtest: **all 10 cases pass** — `test_parameters` (9) + `test_control_server_lifecycle`
+  (1, now configure→activate→deactivate→**re-activate**).
+- Pre-existing legacy lint failures unchanged (`ament_copyright`, `ament_cpplint`,
+  `ament_flake8`, `ament_uncrustify` on the ~34 MOOS-derived files + never-headered
+  `action_server`/`main`). My diff adds **zero** new lint findings: the test file is
+  fully lint-clean (uncrustify/cpplint/copyright), and `main.cpp`'s only uncrustify
+  divergence is the pre-existing trailing blank line (the file was already red on
+  `ament_copyright`). Not reformatting legacy is in keeping with "Only what's needed".
+
+### Next step
+Lifecycle: **Implementation** → **review-code** (re-review the fixes). No push / PR
+(host publishes after local review). Re-review reads the diff cold and confirms the
+race fix and the three suggestion fixes are genuinely resolved.
