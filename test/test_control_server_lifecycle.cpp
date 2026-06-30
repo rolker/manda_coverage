@@ -134,7 +134,18 @@ TEST_F(ControlServerLifecycleTest, PublishesBoundKnobsThenStopsOnDeactivate)
 
   // Deactivate tears the ControlServer down: no NEW heartbeat must arrive.
   ASSERT_EQ(node_->deactivate().label(), "inactive");
-  executor_.spin_some();  // drain anything already queued at deactivate time
+
+  // Drain any heartbeat already in transit before snapshotting the baseline. A
+  // single spin_some() can miss a RELIABLE sample published just before
+  // deactivate() but not yet delivered, which would later read as a spurious
+  // "heartbeat continued". Spin until the count goes quiet (no new message for a
+  // short settle window) or a bounded deadline elapses.
+  int last_count = -1;
+  const auto drain_deadline = std::chrono::steady_clock::now() + 2s;
+  while (std::chrono::steady_clock::now() < drain_deadline && count_ != last_count) {
+    last_count = count_;
+    spin_until([&] {return count_ > last_count;}, 200ms);
+  }
   const int count_at_deactivate = count_;
 
   // Spin past more than one heartbeat period; expect no further messages.
