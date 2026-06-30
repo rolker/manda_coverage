@@ -194,3 +194,25 @@ Address all three suggestions before publishing, per these per-finding decisions
 - **(3) Apply.** Remove the redundant trailing blank line at end of `configure()`
   (`src/SurveyPath.cpp:131`).
 Re-run the package build + tests; then the host re-dispatches review-code.
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 16:20 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Branch**: feature/issue-4 at `ec58534`
+**Addressed**: `## Local Review (Pre-Push)` (2026-06-30 16:10 +00:00, branch `feature/issue-4` at `df6b2a9`), per the operator publish-checkpoint decision recorded in that entry.
+**Commits**: `92f8e13`, `b662111`, `ec58534`
+
+### Actions
+- [x] (suggestion 1) `min_allowable_swath` threshold scoped to `SwathWidth()` only — **documented, not applied** per operator decision — `src/RecordSwath.cpp:217` (Phase-1 scoping note added at the threshold in `src/RecordSwath.cpp` and in `.agent/work-plans/issue-4/plan.md`; threading the threshold through `SwathOuterPts`/`OuterPoint`/`AllSwathWidths` + a PathPlan integration test is deferred to a later phase — default threshold `0.0` ⇒ no behavior change today) — commit `92f8e13`
+- [x] (suggestion 2) Boundary `width == min_allowable_swath` now tested — added `RecordSwathThreshold.AtThresholdReturnsRealWidth` (strict `<` ⇒ value at exactly the threshold returns the real width) — `test/test_parameters.cpp` — commit `b662111`
+- [x] (suggestion 3) Removed redundant trailing blank line at end of `configure()` — `src/SurveyPath.cpp` — commit `ec58534`
+
+### Build & test
+- `./core_ws/build.sh manda_coverage` — clean (only pre-existing `-Wunused-parameter`/`-Wsign-compare` warnings in legacy sources; none from this change).
+- gtest `test_parameters`: **7/7 pass** (3 parameter + 4 thresholding, up from 6 with the new boundary case).
+- Lint on touched files re-verified directly: `test/test_parameters.cpp` clean (uncrustify, cpplint, copyright); the targeted `configure()` blank-line cpplint finding is resolved. Legacy MOOS-derived lint baseline is pre-existing and unchanged.
+
+### Next step
+Ready for review-code re-review of the fixes. No push/PR performed (host publishes after local review).
