@@ -178,3 +178,19 @@ Ready for review-code. No push/PR performed (host publishes after local review).
 - Plan adherence strong: all planned files changed, no scope creep; finite `numeric_limits<double>::max()` range sentinels, dead `m_swath_interval` retired, `find_package(ament_cmake_ros)` added, `package.xml` correctly unchanged.
 - Range enforcement verified active at node `set_parameter` level (not just descriptor metadata). Build/CMake/test wiring clean; new `test/test_parameters.cpp` is lint-clean. Legacy MOOS lint baseline is pre-existing and not attributed to this PR.
 - Tests reported 6/6 passing in the Implementation entry; not independently re-run this session.
+
+### Operator decision (publish checkpoint, 2026-06-30)
+Address all three suggestions before publishing, per these per-finding decisions:
+- **(1) Document, do NOT apply.** Keep `min_allowable_swath` thresholding scoped to
+  `SwathWidth()` only (it drives PathPlan's `all_zero` coverage-complete check).
+  Do **not** thread it through `SwathOuterPts`/`OuterPoint`/`AllSwathWidths`. Add a
+  short Phase-1 scoping note in the code (comment near the `SwathWidth()` threshold
+  and/or the param declaration) explaining that consistent below-threshold handling
+  across the sibling accessors is deferred (default threshold `0.0` ⇒ no behavior
+  change today; full coverage-complete semantics with a non-zero threshold is a
+  later phase). Reflect the same note in `plan.md` if it touches that behavior.
+- **(2) Apply.** Add the `width == min_allowable_swath` boundary test (strict `<`
+  ⇒ value at exactly the threshold stays valid / returns the real width).
+- **(3) Apply.** Remove the redundant trailing blank line at end of `configure()`
+  (`src/SurveyPath.cpp:131`).
+Re-run the package build + tests; then the host re-dispatches review-code.
