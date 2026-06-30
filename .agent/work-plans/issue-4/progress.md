@@ -98,3 +98,61 @@ work is self-contained; it does not depend on any other open issue.
 
 ### Notes
 - Structurally sound: file targeting, dead-member (`m_swath_interval`) and never-read (`m_min_allowable_swath`) claims, and the "PathPlan ctor signature unchanged → no external-caller breakage" consequence all verified against source. The must-fix is a concrete correctness defect in the parameter-range encoding, not a structural re-plan.
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 16:05 +00:00
+**By**: Claude Opus
+
+**Branch**: feature/issue-4 at `b9ec729`
+**Commits**:
+- `c231faf` — RecordSwath setters (`SetInterval`, `SetMinAllowableSwath`) + `SwathWidth()` thresholding
+- `444f9ba` — SurveyPath parameter declarations + dead-member removal
+- `9f6886a` — tests + CMake `BUILD_TESTING` wiring
+- `b9ec729` — plan sync
+
+### What was implemented
+Implemented the plan as written with all three Plan Review corrections applied:
+
+1. **Range-descriptor encoding (MUST-FIX, applied).** Parameters declared in
+   `SurveyPath::configure()` via a local `declare_bounded` lambda using
+   `FloatingPointRange` descriptors:
+   - `swath_overlap` `[0.0, 1.0]` default `0.2`
+   - `max_bend_angle` `[0.0, 90.0]` default `60.0`
+   - `swath_record_interval` `[0.001, std::numeric_limits<double>::max()]` default `10.0`
+   - `min_allowable_swath` `[0.0, std::numeric_limits<double>::max()]` default `0.0`
+   Finite `max()` sentinels used for unbounded-above ranges (no `to_value=0.0`);
+   `#include <limits>` added.
+
+2. **SwathWidth() thresholding test (SUGGESTION, applied).** `RecordSwathThreshold`
+   suite covers below-threshold → `0.0`, at/above → real width, and default `0.0`
+   threshold never zeroing a positive width. (A test-helper bug — first `AddRecord`
+   at `(0,0,heading=0)` collided with the zero-initialised `m_previous_record`
+   duplicate guard and was silently dropped — was found and fixed by using
+   heading `45.0`.)
+
+3. **CMake test dependency (SUGGESTION, applied).** Added
+   `find_package(ament_cmake_ros REQUIRED)` to the `BUILD_TESTING` block to expose
+   `ament_add_ros_isolated_gtest`. Plan step 7's `package.xml` `<test_depend>` add
+   was correctly skipped as a **no-op** — `ament_cmake_ros` is already a
+   `buildtool_depend`.
+
+Dead `m_swath_interval` member removed from `SurveyPath.h`; redundant
+`m_swath_record(10)` constructor initialiser dropped (defaults to `10`,
+overridden by `configure()`).
+
+### Build & test
+- `./core_ws/build.sh manda_coverage` — clean (built via `--packages-up-to` to
+  pick up in-workspace deps `marine_nav_interfaces`/`marine_nav_utilities` on
+  first build; only pre-existing `-Wunused-parameter` warnings in
+  `action_server.cpp`, none from this change).
+- gtest `test_parameters`: **6/6 pass** (3 parameter + 3 thresholding).
+- The package's `ament_lint` suite has a large pre-existing baseline of
+  uncrustify/cpplint/copyright failures across the legacy MOOS-derived sources
+  (header-guard style, comment spacing, missing copyright, etc.) — out of scope
+  for this issue. The new `test/test_parameters.cpp` is lint-clean (uncrustify,
+  cpplint, copyright all pass) and the one >100-char line introduced in
+  `SurveyPath.cpp` was wrapped so no new cpplint line-length failure is added.
+
+### Next step
+Ready for review-code. No push/PR performed (host publishes after local review).
