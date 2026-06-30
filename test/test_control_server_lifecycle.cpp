@@ -194,9 +194,8 @@ TEST_F(ControlServerLifecycleTest, PublishesBoundKnobsThenStopsOnDeactivate)
   // the first deactivate above), so an in-flight sample is not misread as the
   // heartbeat continuing.
   int last_final = -1;
-  const auto final_drain_deadline = std::chrono::steady_clock::now() + 2s;
-  while (std::chrono::steady_clock::now() < final_drain_deadline &&
-         count_ != last_final) {
+  const auto final_deadline = std::chrono::steady_clock::now() + 2s;
+  while (std::chrono::steady_clock::now() < final_deadline && count_ != last_final) {
     last_final = count_;
     spin_until([&] {return count_ > last_final;}, 200ms);
   }
