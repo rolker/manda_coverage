@@ -182,4 +182,29 @@ TEST_F(ControlServerLifecycleTest, PublishesBoundKnobsThenStopsOnDeactivate)
   }
   EXPECT_EQ(got_reactivate, expected)
     << "bound control names do not match the seven knobs after re-activate()";
+
+  // Finish by driving the lifecycle teardown we actually ship rather than leaving
+  // the final ControlServer destruction to node_'s unique_ptr destructor:
+  // deactivate() reset()s the server (heartbeat must stop), then shutdown()
+  // finalizes the node. This exercises the on_deactivate/on_shutdown reset paths
+  // end-to-end.
+  ASSERT_EQ(node_->deactivate().label(), "inactive");
+
+  // Drain any heartbeat still in transit before snapshotting (same rationale as
+  // the first deactivate above), so an in-flight sample is not misread as the
+  // heartbeat continuing.
+  int last_final = -1;
+  const auto final_drain_deadline = std::chrono::steady_clock::now() + 2s;
+  while (std::chrono::steady_clock::now() < final_drain_deadline &&
+         count_ != last_final) {
+    last_final = count_;
+    spin_until([&] {return count_ > last_final;}, 200ms);
+  }
+  const int count_at_final_deactivate = count_;
+  EXPECT_FALSE(spin_until([&] {return count_ > count_at_final_deactivate;}, 3s))
+    << "heartbeat continued after final deactivate()";
+
+  // shutdown() from the inactive state finalizes the node; on_shutdown reset()s
+  // the (already-null) ControlServer, exercising that teardown path too.
+  ASSERT_EQ(node_->shutdown().label(), "finalized");
 }
