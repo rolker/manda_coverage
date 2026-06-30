@@ -110,3 +110,68 @@ independent review, so no self-review annotation. -->
 - [ ] (suggestion) review-issue Action #1 (lifecycle test coverage) not carried into the plan — adoption path (`on_activate` construct+bind, `on_deactivate` reset) is exercised by nothing; `test_parameters.cpp` uses `rclcpp::Node`, not the LifecycleNode. Add a lifecycle fixture or record a known gap + follow-up issue. — `plan.md:60`
 - [ ] (suggestion) review-issue Action #2 (deadlock analysis: `ControlServer::on_change` → `set_parameter` → post-set `m_param_mutex`) dropped; Open Questions says "None". Carry the check forward as an implementation step. — `plan.md:84`
 - [ ] (suggestion) Teardown wired only in `on_deactivate()`; a direct active→shutdown skips it and leaves `control_server_` destruction to the node destructor — `control_server.hpp:38` warns against destroying while spinning. Also reset in `on_cleanup`/`on_shutdown`, or confirm deactivate always precedes shutdown. — `plan.md:45`
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 18:50 +00:00
+**By**: Claude Opus
+
+**Branch**: feature/issue-6
+**Commits**:
+- `4cf7eee` build: depend on marine_control for the action server
+- `3f18432` feat: adopt marine_control ControlServer for operator control
+- `2ad97a0` test: lifecycle test for the ControlServer adoption
+- (this entry) plan sync + progress
+
+All three Plan Review suggestions were folded in.
+
+### What was built
+- **Dependency wiring** — `package.xml` `<depend>marine_control</depend>`;
+  `CMakeLists.txt` `find_package(marine_control REQUIRED)` and
+  `marine_control::marine_control` linked into `manda_coverage_action_server`.
+  (Also dropped a stray trailing space on the `add_executable` line, which was
+  the sole `ament_lint_cmake` error — that linter now passes.)
+- **Member** — `action_server.h` includes `marine_control/control_server.hpp`
+  and adds `std::unique_ptr<marine_control::ControlServer> control_server_`.
+- **Construct + bind** — `on_activate()` constructs the server with
+  `opts.device_name = "Manda Coverage"` and `bind_parameter()`s all seven knobs
+  with units + `group = "Coverage"`.
+- **Suggestion 1 (MUST-FIX) — reset in all teardown paths** —
+  `control_server_.reset()` added before the existing `survey_path_` teardown in
+  `on_deactivate()`, `on_cleanup()`, and `on_shutdown()`. `reset()` is idempotent
+  on a null `unique_ptr`, so each path is safe when already null (verified by
+  reading: deactivate→cleanup leaves it null at cleanup; a configured-but-never-
+  activated node has it null at cleanup/shutdown; active→shutdown resets exactly
+  once in shutdown).
+- **Suggestion 3 — deadlock analysis** — documented as a comment by the
+  construction in `on_activate()` and in `plan.md`: `on_change` (server's own
+  mutually-exclusive callback group) → `set_parameter` → post-set apply
+  (parameter-service group, `m_param_mutex`); neither re-enters the other, no
+  lock-order inversion.
+- **Suggestion 2 — lifecycle test** — `test/test_control_server_lifecycle.cpp`
+  drives configure→activate, asserts a `ControlSet` heartbeat on
+  `~/control/state` with the 7 bound knobs (`group=="Coverage"`), then
+  deactivate and asserts the heartbeat stops. Bounded `spin_some` + steady-clock
+  deadline poll (no fixed sleeps). Context init is in `SetUpTestSuite` because the
+  fixture's executor member is constructed before `SetUp()`.
+- **Plan sync** — fixed the Issue URL to
+  `https://github.com/rolker/manda_coverage/issues/6`; reflected the all-paths
+  reset, the deadlock note, and the new test in Approach / Files-to-Change /
+  Principles / Open Questions.
+
+### Build & test
+- `colcon build --packages-up-to manda_coverage` — clean (pre-existing
+  unused-parameter warnings in legacy code only).
+- gtest: **all 10 cases pass** — `test_parameters` (9) + `test_control_server_lifecycle` (1).
+- **Pre-existing legacy lint failures remain** (`ament_copyright`,
+  `ament_cpplint`, `ament_uncrustify`, `ament_flake8` — ~1900 findings across ~38
+  unchanged MOOS-derived files: `lib_geometry/*`, `lib_mbutil/*`, `PathPlan.h`,
+  `RecordSwath.h`, `SurveyPath.h`, `launch/*.py`, and the never-headered
+  `action_server.{h,cpp}`). These are unrelated to #6 and were red before this
+  work; my diff touches only 5 files and adds **zero** new lint findings (the new
+  test file and CMake edits are lint-clean; `ament_lint_cmake` was fixed). Not
+  reformatting the legacy library is in keeping with "Only what's needed".
+
+### Next step
+Ready for review-code. No push / PR (host publishes after local review). PR will
+carry `Closes #6`.

@@ -2,7 +2,7 @@
 
 ## Issue
 
-https://github.com/rolker/ros2_agent_workspace/issues/6
+https://github.com/rolker/manda_coverage/issues/6
 
 ## Context
 
@@ -31,7 +31,7 @@ in `on_deactivate()`.
 3. **Construct in `on_activate()`, bind all seven parameters** — after `survey_path_->activate()`:
    ```cpp
    marine_control::ControlServerOptions opts;
-   opts.device_name = "Coverage";
+   opts.device_name = "Manda Coverage";
    control_server_ = std::make_unique<marine_control::ControlServer>(this, opts);
    control_server_->bind_parameter("swath_overlap",              "fraction", "Coverage");
    control_server_->bind_parameter("max_bend_angle",             "deg",      "Coverage");
@@ -42,28 +42,55 @@ in `on_deactivate()`.
    control_server_->bind_parameter("lead_out_distance",          "m",        "Coverage");
    ```
 
-4. **Reset in `on_deactivate()`** — before `survey_path_->deactivate()`:
-   ```cpp
-   control_server_.reset();
-   ```
-   This tears down the heartbeat timer and change subscription while the node is not spinning between deactivate/cleanup.
+   **Deadlock analysis (review-issue Action #2, carried forward).** An inbound
+   `ControlValue` triggers `ControlServer::on_change` → `node->set_parameter`,
+   which synchronously fires the post-set apply callback (`m_param_mutex`, from
+   #5). This chain is deadlock-free: `on_change` runs in the ControlServer's own
+   dedicated mutually-exclusive callback group (`control_server.hpp` threading
+   contract), the post-set apply runs in the parameter-service group, and neither
+   re-enters the other — the apply callback only copies validated values into
+   cached members / `RecordSwath` and never calls `set_parameter` or touches the
+   ControlServer. No lock-order inversion. A short version of this note lives in
+   `on_activate()` next to the construction.
+
+4. **Reset in every teardown path** — `control_server_.reset()` placed before the
+   existing `survey_path_` teardown in **`on_deactivate()`, `on_cleanup()`, and
+   `on_shutdown()`** (review-plan suggestion 3). The server is active the moment
+   it is constructed, and `control_server.hpp:38` warns against destroying it from
+   the node destructor while the node may still be spinning. A direct
+   active→shutdown skips `on_deactivate`, so resetting only there would leak the
+   teardown to the destructor; resetting in all three paths closes that gap.
+   `reset()` is idempotent on a null `unique_ptr`, so each path is safe when the
+   server is already gone (e.g. cleanup after deactivate, or a node that was
+   configured but never activated).
+
+5. **Lifecycle test** (review-issue Action #1 / review-plan suggestion 1) —
+   `test/test_control_server_lifecycle.cpp`, wired via `ament_add_ros_isolated_gtest`.
+   It drives `MandaCoverageActionServer` through `configure()`/`activate()` on a
+   `SingleThreadedExecutor`, asserts a `ControlSet` heartbeat arrives on
+   `~/control/state` with the seven bound knobs (`group == "Coverage"`), then
+   `deactivate()`s and asserts the heartbeat stops (teardown verified). The poll
+   loop uses `spin_some` + a steady-clock deadline (no fixed sleeps) for CI
+   robustness. This covers the `on_activate`/`on_deactivate` adoption paths that
+   the `rclcpp::Node`-based `test_parameters.cpp` cannot reach.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `package.xml` | Add `<depend>marine_control</depend>` |
-| `CMakeLists.txt` | Add `find_package(marine_control REQUIRED)`; add `marine_control::marine_control` to `target_link_libraries` for the action-server executable |
+| `package.xml` | Add `<depend>marine_control</depend>`; add `<test_depend>marine_control_interfaces</test_depend>` for the lifecycle test |
+| `CMakeLists.txt` | Add `find_package(marine_control REQUIRED)`; add `marine_control::marine_control` to `target_link_libraries` for the action-server executable; in `BUILD_TESTING`, `find_package(marine_control_interfaces)` and register `test_control_server_lifecycle` (compiling `src/action_server.cpp` into it) |
 | `include/manda_coverage/action_server.h` | Include `marine_control/control_server.hpp`; add `std::unique_ptr<marine_control::ControlServer> control_server_` private member |
-| `src/action_server.cpp` | Construct + bind in `on_activate()`; `control_server_.reset()` in `on_deactivate()` |
+| `src/action_server.cpp` | Construct + bind in `on_activate()` (with the deadlock-analysis comment); `control_server_.reset()` in `on_deactivate()`, `on_cleanup()`, and `on_shutdown()` |
+| `test/test_control_server_lifecycle.cpp` | New gtest exercising configure→activate (heartbeat with seven bound knobs) and deactivate (heartbeat stops) |
 
 ## Principles Self-Check
 
 | Principle | Consideration |
 |---|---|
-| A change includes its consequences | Bridge wiring (`udp_bridge` config) is explicitly out of scope per the issue; no stale docs left. |
-| Only what's needed | Seven `bind_parameter()` calls, four file edits — no new abstractions. `ControlServer` tests live in `marine_control`; no duplicate tests here. |
-| Lifecycle gating | Construct in `on_activate()`, reset in `on_deactivate()` — exactly as the `ControlServer` header specifies. |
+| A change includes its consequences | Bridge wiring (`udp_bridge` config) is explicitly out of scope per the issue; no stale docs left. The adoption path is now covered by `test_control_server_lifecycle.cpp` (review-issue Action #1). |
+| Only what's needed | Seven `bind_parameter()` calls plus a focused lifecycle test — no new abstractions. The `ControlServer`'s internals are tested in `marine_control`; this test only asserts the adoption (bind set, group, teardown), not duplicated server behaviour. |
+| Lifecycle gating | Construct in `on_activate()`, reset in `on_deactivate()`/`on_cleanup()`/`on_shutdown()` — covering the direct active→shutdown path the header warns about. |
 
 ## ADR Compliance
 
@@ -81,7 +108,11 @@ in `on_deactivate()`.
 
 ## Open Questions
 
-- None — `bind_parameter()` must be called after parameters are declared (they are, by `on_configure` → `survey_path_->configure()`), and the lifecycle gating pattern is specified in the `ControlServer` header.
+- None. `bind_parameter()` is called after parameters are declared (by
+  `on_configure` → `survey_path_->configure()`); the lifecycle gating pattern is
+  specified in the `ControlServer` header; and the three review-plan suggestions
+  (reset in all teardown paths, deadlock analysis, lifecycle test) are all folded
+  into the approach above and implemented.
 
 ## Estimated Scope
 
