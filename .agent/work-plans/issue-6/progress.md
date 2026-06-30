@@ -311,3 +311,30 @@ race fix and the three suggestion fixes are genuinely resolved.
 
 ### Next step
 Lifecycle: **Local Review (approved)** → host publishes (push / open PR with `Closes #6`) → **triage-reviews**. Verdict is approved (0 must-fix); the 4 suggestions are non-blocking — apply the comment-scope fix opportunistically or carry forward. Static analysis clean on changed lines; pre-existing legacy MOOS lint debt untouched and out of scope.
+
+### Operator decision (round 2, 2026-06-30)
+Address all four suggestions, then re-review:
+- **(1) Scope the threading comment honestly.** In `src/main.cpp` (and the
+  `on_deactivate`/reset note in `src/action_server.cpp`), do NOT claim the
+  bind/teardown race is fully eliminated. State accurately: the
+  `SingleThreadedExecutor` serializes the **lifecycle-manager-driven** transitions
+  (they run on the executor thread, so they can't race the server's timer/sub),
+  **but** `nav2_util::LifecycleNode` registers an rcl pre-shutdown callback that
+  drives `deactivate`/`cleanup` → `control_server_.reset()` on the **signal-handler
+  thread** during SIGINT — a one-shot teardown-vs-heartbeat window at process exit
+  that single-threading does not close. Reference the general fix:
+  `rolker/marine_control`#12 (inject an external callback group / lock `bindings_`).
+- **(2) Record the responsiveness tradeoff.** Add a brief comment (near the
+  executor in `main.cpp`) noting the deliberate round-1 decision: single-threaded
+  means a long planning callback (odom/ping → CreateNewPath → PathPlan) blocks the
+  ControlServer heartbeat/change handling and action handling on the one thread;
+  acceptable for this lightweight planner.
+- **(3) test TearDown.** `remove_node(node_)` in `TearDown` (it currently removes
+  only `sub_node_`) before `node_.reset()`, so the executor doesn't hold a node
+  that's being dropped.
+- **(4) test end state.** End the test by driving `on_deactivate` (and
+  `on_shutdown` if natural) so the final `control_server_` teardown runs through the
+  lifecycle path rather than only the `unique_ptr` destructor — exercising the
+  teardown path we actually ship.
+Re-run the package build + tests (expect all 10 pass); host re-dispatches review-code.
+The `marine_control` follow-up (#12) is already filed by the host.
