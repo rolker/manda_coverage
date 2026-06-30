@@ -203,14 +203,31 @@ double RecordSwath::SwathWidth(BoatSide side, unsigned int index)
     if (m_min_record.size() > index)
     {
         std::list<SwathRecord>::iterator list_record = std::next(m_min_record.begin(), index);
+        double width = 0;
         if (side == BoatSide::Stbd)
         {
-            return list_record->swath_stbd;
+            width = list_record->swath_stbd;
         }
         else if (side == BoatSide::Port)
         {
-            return list_record->swath_port;
+            width = list_record->swath_port;
         }
+        // Widths below the minimum allowable swath are reported as no coverage,
+        // which lets PathPlan's all_zero check signal survey completion.
+        //
+        // Phase 1 scope: the threshold is applied here in SwathWidth() only,
+        // not in the sibling accessors SwathOuterPts()/OuterPoint()/
+        // AllSwathWidths(). That is intentional — SwathWidth() is what feeds
+        // PathPlan's all_zero coverage-complete check, and the default
+        // threshold of 0.0 means no behavior change today. Threading the
+        // threshold consistently through the sibling accessors (so that
+        // sub-threshold points are handled identically everywhere when the
+        // threshold is non-zero) is deferred to a later phase.
+        if (width < m_min_allowable_swath)
+        {
+            return 0;
+        }
+        return width;
     }
     return 0;
 }
