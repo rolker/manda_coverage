@@ -128,7 +128,6 @@ void SurveyPath::configure()
 
   m_swath_record.SetInterval(swath_record_interval);
   m_swath_record.SetMinAllowableSwath(min_allowable_swath);
-
 }
 
 void SurveyPath::activate()

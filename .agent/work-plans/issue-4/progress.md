@@ -172,7 +172,7 @@ Ready for review-code. No push/PR performed (host publishes after local review).
 ### Findings
 - [x] (suggestion) `min_allowable_swath` threshold applied in `SwathWidth()` but not `SwathOuterPts`/`OuterPoint`/`AllSwathWidths` — partial below-threshold coverage keeps `all_zero` false and zero-offsets sub-threshold points; document or apply consistently + add PathPlan integration test (cross-pass confirmed: Lens A + Lens B) — `src/RecordSwath.cpp:217` / `src/PathPlan.cpp:85` (documented per operator decision: scoping note added in code + plan.md; consistent threading + integration test deferred to a later phase)
 - [x] (suggestion) Boundary `width == min_allowable_swath` (strict `<` keeps it as valid) is untested — add a boundary test — `src/RecordSwath.cpp:217`
-- [ ] (suggestion) Redundant trailing blank line at end of `configure()` (only new lint finding on a touched line) — `src/SurveyPath.cpp:131`
+- [x] (suggestion) Redundant trailing blank line at end of `configure()` (only new lint finding on a touched line) — `src/SurveyPath.cpp:131`
 
 ### Notes
 - Plan adherence strong: all planned files changed, no scope creep; finite `numeric_limits<double>::max()` range sentinels, dead `m_swath_interval` retired, `find_package(ament_cmake_ros)` added, `package.xml` correctly unchanged.
