@@ -9,6 +9,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(marine_control REQUIRED)
 find_package(marine_nav_interfaces REQUIRED)
 find_package(marine_nav_utilities REQUIRED)
 find_package(nav_2d_utils REQUIRED)
@@ -85,7 +86,7 @@ ament_export_dependencies(
 
 # Action server
 
-add_executable(${PROJECT_NAME}_action_server 
+add_executable(${PROJECT_NAME}_action_server
   src/action_server.cpp
   src/main.cpp
 )
@@ -93,6 +94,7 @@ add_executable(${PROJECT_NAME}_action_server
 
 target_link_libraries(${PROJECT_NAME}_action_server
   ${PROJECT_NAME}
+  marine_control::marine_control
   ${marine_nav_interfaces_TARGETS}
   marine_nav_utilities::marine_nav_utilities
   rclcpp::rclcpp
