@@ -193,3 +193,37 @@ carry `Closes #6`.
 - [ ] (suggestion) Deadlock-analysis comment misdescribes the mechanism: the post-set apply (`add_post_set_parameters_callback`, `SurveyPath.cpp:162`) runs synchronously inline on `on_change`'s thread, not a separate "parameter-service group"; conclusion (no deadlock) holds but the comment asserts non-existent thread-separation and omits the real bind/teardown race. — `src/action_server.cpp:44-54`
 - [ ] (suggestion) Lifecycle test uses SingleThreadedExecutor and transitions before `add_node`, so it cannot reproduce the production MTExecutor race or the deactivate→activate re-bind path; add an MT-executor / re-activation variant. — `test/test_control_server_lifecycle.cpp:90-94`
 - [ ] (suggestion) Single `spin_some()` before snapshotting `count_at_deactivate` may not drain a RELIABLE heartbeat in transit (minor flakiness; errs toward false failure, not false pass). — `test/test_control_server_lifecycle.cpp:127-138`
+
+### Operator decision (round 1, 2026-06-30)
+Fix the must-fix via **SingleThreadedExecutor in manda** and address all 3 suggestions:
+- **(must-fix) Switch `src/main.cpp` to `rclcpp::executors::SingleThreadedExecutor`.**
+  A single executor thread means lifecycle transitions (construct/bind in
+  `on_activate`, `reset()` in `on_deactivate`/`on_cleanup`/`on_shutdown`) can never
+  run concurrently with the ControlServer's own timer/change-sub callbacks, so the
+  `bindings_` bind race and the timer/sub-teardown-vs-heartbeat race are both
+  eliminated — satisfying `control_server.hpp`'s no-concurrent-execution contract.
+  **Keep** `m_param_mutex` from #5 (defensive; documents the param-apply-vs-planning
+  invariant). **Update the now-stale comments** that cite a "MultiThreadedExecutor"
+  as the mutex rationale — `src/SurveyPath.cpp` (~lines 161, 222) and the
+  `m_param_mutex` member comment in `include/manda_coverage/SurveyPath.h`: state that
+  the node now uses a SingleThreadedExecutor so callbacks are already serialized, and
+  the mutex is retained defensively to guard the param-apply-vs-planning invariant
+  should the executor change.
+- **(suggestion) Fix the deadlock-analysis comment** in `src/action_server.cpp`: the
+  post-set apply runs **synchronously inline on `on_change`'s thread** (not a separate
+  "parameter-service group"). State the accurate mechanism — and that with the
+  SingleThreadedExecutor there is no concurrency between the lifecycle bind/reset and
+  the server's callbacks.
+- **(suggestion) Test: add the deactivate→activate re-bind path.** Extend
+  `test/test_control_server_lifecycle.cpp` to deactivate then **re-activate** and
+  assert the `ControlSet` heartbeat resumes with the 7 bound items. **Keep the test on
+  a SingleThreadedExecutor** to match production (drop the MT-executor variant — prod
+  is now single-threaded).
+- **(suggestion) Fix the heartbeat drain** before snapshotting `count_at_deactivate`:
+  use a bounded `spin_some` poll loop (with a short deadline) to drain any in-flight
+  RELIABLE heartbeat before recording the baseline, rather than a single `spin_some`.
+- **Plan + follow-up**: update `plan.md` to note the SingleThreadedExecutor choice.
+  The HOST will file a `marine_control` follow-up issue documenting the MT-adoption
+  gap (the header recommends `on_activate` construction but the server isn't MT-safe
+  while spinning) — address-findings need not file it.
+Re-run the package build + tests (expect all pass); host re-dispatches review-code.
