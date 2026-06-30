@@ -14,12 +14,18 @@ propagate into the cached member variables or live `RecordSwath` state.
 This PR wires a validate/apply callback pair so operators can tune parameters
 between survey lines without restarting the node.
 
-Key design decision (operator-chosen): **split validate from apply** using the
-idiomatic Jazzy/Rolling pattern — an `add_on_set_parameters_callback` that only
-validates the proposed values (no mutation), and an
-`add_post_set_parameters_callback` that applies committed values. This is
-atomic-safe for multi-parameter sets: a later rejected value cannot leave
-earlier members half-applied.
+Key design decision (operator-chosen, refined at pre-push review): apply live
+values from an **`add_post_set_parameters_callback`** only. The initial plan also
+added an `add_on_set_parameters_callback` to validate, but pre-push review found
+it vestigial — rclcpp rejects type and descriptor-range violations *before* any
+callback fires for these statically-typed double params, so the on-set callback
+was unreachable dead code and its `reason` never fired. It was dropped; type/range
+rejection (with rclcpp's generic `reason`) is enforced by the descriptors. The
+post-set apply runs only on a committed set, so it is still atomic-safe for
+multi-parameter sets (a later rejected value cannot leave earlier members
+half-applied). Because the apply callback writes the shared tuning members while
+the ping/odom planning callbacks read them under a MultiThreadedExecutor, a
+`std::mutex` (`m_param_mutex`) guards both paths.
 
 Key design decision (from review-issue, open-action): **setter over re-read per
 cycle** for `RecordSwath.SetInterval()`. `RecordSwath` already has public
@@ -46,35 +52,26 @@ is invoked.
    `from_value = 0.0, to_value = std::numeric_limits<double>::max()`. This
    gives ROS 2 automatic range enforcement and uniform declaration style.
 
-3. **Split validate (on-set) from apply (post-set) in `configure()`** — After
-   all parameter declarations, register two callbacks (the idiomatic
-   Jazzy/Rolling pattern, which is atomic-safe for multi-parameter sets):
+3. **Apply committed values from a post-set callback in `configure()`** — After
+   all parameter declarations, register a single
+   **`add_post_set_parameters_callback` = APPLY**. It runs *after* the set is
+   committed, iterates the committed `const std::vector<rclcpp::Parameter>&`,
+   and for each recognised name updates the cached member (`m_swath_overlap`,
+   `m_max_bend_angle`, the three distance members) and/or calls the live
+   `RecordSwath` setter (`SetInterval`, `SetMinAllowableSwath`). Because it runs
+   only on a committed set, a multi-parameter set whose later value is rejected
+   never leaves earlier members half-applied. Type/range rejection is enforced
+   upstream by rclcpp from the descriptors (no on-set callback needed — see the
+   design decision above). The callback takes `m_param_mutex` so its writes are
+   serialized against the ping/odom planning callbacks that read the same members
+   under a MultiThreadedExecutor.
 
-   - **`add_on_set_parameters_callback` = VALIDATE only.** Iterates the proposed
-     `const std::vector<rclcpp::Parameter>&` and returns
-     `rcl_interfaces::msg::SetParametersResult` — `successful = true` on accept,
-     or `successful = false` with a populated `reason` string on a type
-     mismatch. It does **not** write any cached member or call a `RecordSwath`
-     setter. Descriptor floating-point-range rejections are produced by rclcpp
-     *before* this callback fires, so out-of-range sets are already rejected
-     upstream; the test's `result.successful == false` for out-of-range comes
-     from ROS, not this callback. The `reason` string is read by the Phase 3
-     marine_control bridge for operator-facing diagnostics.
-   - **`add_post_set_parameters_callback` = APPLY.** Runs *after* the set is
-     committed. Iterates the committed `const std::vector<rclcpp::Parameter>&`
-     and, for each recognised name, updates the cached member
-     (`m_swath_overlap`, `m_max_bend_angle`, the three distance members) and/or
-     calls the live `RecordSwath` setter (`SetInterval`,
-     `SetMinAllowableSwath`). This is where live state actually changes — and,
-     because it runs only on a committed set, a multi-parameter set whose later
-     value is rejected never leaves earlier members half-applied.
-
-4. **Store both callback handles in `SurveyPath.h`** — Add
-   `rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
-   on_set_param_callback_handle_` and
+4. **Store the callback handle + mutex in `SurveyPath.h`** — Add
    `rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
-   post_set_param_callback_handle_` as private members. Reset **both** in
-   `cleanup()` so the callbacks are unregistered during lifecycle teardown.
+   post_set_param_callback_handle_` and a `std::mutex m_param_mutex` as private
+   members. Reset the handle in `cleanup()` so the callback is unregistered
+   during lifecycle teardown. (The on-set handle from the initial plan was
+   dropped along with the on-set callback.)
 
 5. **Add `GetMinAllowableSwath()` getter to `RecordSwath.h`** — The existing
    `SetMinAllowableSwath()` has no paired getter; add
