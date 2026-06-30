@@ -80,3 +80,21 @@ work is self-contained; it does not depend on any other open issue.
 
 ### Open questions
 - [ ] No open questions — plan is review-plan-ready.
+
+## Plan Review
+**Status**: complete
+**When**: 2026-06-30 15:23 +00:00
+**By**: Claude Code Agent (Claude Opus)
+<!-- Name matches the Plan Authored entry, but this is a fresh-context Opus sub-agent reviewing a Sonnet-authored plan — genuinely independent, not an in-context self-review, so no self-review annotation. -->
+
+**Plan**: `.agent/work-plans/issue-4/plan.md` at `4ae669d`
+**PR**: PR-less (--issue mode; gh unauthenticated — issue context read from the Issue Review entry above)
+**Verdict**: changes-requested
+
+### Findings
+- [ ] (must-fix) Range descriptors for unbounded-above params are encoded wrong: `swath_record_interval` `from_value=0.001` with default `to_value=0.0` rejects the default 10.0 at declare time (configure() throws); `min_allowable_swath` `to_value=0.0` yields range `[0,0]` so the threshold can never be raised. Use finite upper sentinels (e.g. `numeric_limits<double>::max()`) per the Issue Review's "large sentinel" recommendation — there is no existing `ParameterDescriptor` pattern in the repo to copy. — `plan.md:43-44`
+- [ ] (suggestion) "Test what breaks": tests cover only ROS-level declaration/range rejection; the new `SwathWidth()` thresholding logic (feeds PathPlan `all_zero` at `PathPlan.cpp:97-103` and zeroes the offset at `PathPlan.cpp:86`) is untested. Add a `RecordSwath::SwathWidth()` unit test or document the gap. — `plan.md:55-62`
+- [ ] (suggestion) BUILD_TESTING block needs `find_package(ament_cmake_ros REQUIRED)` to expose `ament_add_ros_isolated_gtest`; current block only runs lint. `ament_cmake_ros` is already a buildtool_depend, so step 7's test_depend add is a no-op. — `plan.md:63-68`
+
+### Notes
+- Structurally sound: file targeting, dead-member (`m_swath_interval`) and never-read (`m_min_allowable_swath`) claims, and the "PathPlan ctor signature unchanged → no external-caller breakage" consequence all verified against source. The must-fix is a concrete correctness defect in the parameter-range encoding, not a structural re-plan.
