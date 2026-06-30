@@ -295,3 +295,31 @@ Re-run the package build + tests (expect all pass); host re-dispatches review-co
 Lifecycle: **Implementation** → **review-code** (re-review the fixes). Hand off to a fresh-context sub-agent:
 
     .agent/scripts/dispatch_subagent.sh --mode in-process --issue 5 --skill review-code
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-06-30 18:09 +00:00
+**By**: Claude Code Agent (Claude Opus)
+**Verdict**: approved
+
+**Branch**: feature/issue-5 at `f2ab067`
+**Mode**: pre-push
+**Depth**: Standard (reason: ~120 LOC across 4 C++ files; concurrency-central but localized — no cross-layer/security promotion)
+**Must-fix**: 0 | **Suggestions**: 3
+**Round**: 3 | **Ship**: recommended — round-2 must-fix (lock set_goal) verified correctly implemented; build clean, gtest 9/9, cppcheck clean, two adversarial passes found no must-fix; only doc/critical-section suggestions + a host-owned plan.md residual remain.
+
+### Findings
+- [ ] (suggestion) Mutex-rationale comments overstate concurrency: ping/odom share one MutuallyExclusive callback group so the executor serializes them; the real concurrency guarded is param-apply group + action-server (set_goal) default group — `src/SurveyPath.cpp:158` (also :300, :341; `include/manda_coverage/SurveyPath.h:133`). Cross-pass confirmed (Lens A + Lens B).
+- [ ] (suggestion) set_goal/odomCallback hold m_param_mutex across the full planning work and next_line_callback_ (action-feedback publish), widening the critical section beyond parameter state; functionally correct, could copy tuning values under a short lock if contention matters — `src/SurveyPath.cpp:224`
+- [ ] (suggestion) plan.md Consequences table still references the dropped on-set callback ("Validate/apply split (on-set + post-set callbacks) … Both handles") — round-2 sync (945904d) fixed Files-to-Change/ADR/step-6 but missed this row; host-owned plan.md edit — `.agent/work-plans/issue-5/plan.md:135`
+
+### Notes
+- Round-2 must-fix verified: traced full call tree under set_goal/odomCallback/pingCallback (DetermineStartAndTurn, CreateNewPath, extendPathForLeadInOut, sendPath, m_swath_record methods) — no callee re-locks the non-recursive m_param_mutex; no lock-order inversion with rclcpp's internal parameter mutex (lockers never call the parameter interface); every reader of the live members (waypoint_distance_threshold_/lead_in/out_distance_/m_swath_overlap/m_max_bend_angle/m_swath_record) is now guarded or runs at configure() time before the executor spins. SwathOutsideRegion() remains dead code (no caller). post_set_param_callback_handle_ reset in cleanup(); re-configure safe (handle reset + fresh SurveyPath + has_parameter guards).
+- Epsilon floor (round-2 suggestion): waypoint_distance_threshold lower bound 0.1 (strictly positive, default 4.0) — correct.
+- Build & test: colcon build --packages-up-to manda_coverage success (only pre-existing unused-parameter warning on action_server.cpp). gtest 9/9 pass, 0 failures. The 5 colcon test-result failures (copyright, cpplint, flake8, lint_cmake, uncrustify) are the same pre-existing ament_lint debt on legacy MOOS-derived code; added lines introduce no new categories.
+- Static analysis: cppcheck clean on changed lines; cpplint not installed on host.
+
+### Next step
+Lifecycle: **Local Review (approved)** → push / open PR → **triage-reviews**. Diff is shippable; the three suggestions can be applied in a quick pass or tracked (suggestion 3 is host-owned). Hand off to a fresh-context sub-agent after push:
+
+    .agent/scripts/dispatch_subagent.sh --mode in-process --issue 5 --skill triage-reviews
