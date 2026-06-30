@@ -90,3 +90,23 @@ issue: 6
 
 ### Open questions
 - [ ] No open questions — plan is review-plan-ready.
+
+## Plan Review
+**Status**: complete
+**When**: 2026-06-30 18:30 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+<!-- Independent review: the Plan Authored entry shares the workspace agent name
+"Claude Code Agent", but this review is a fresh-context, host-dispatched
+sub-agent on a different model (Sonnet authored, Opus reviewing). The name-match
+self-review heuristic misfires on the shared name; this is a genuinely
+independent review, so no self-review annotation. -->
+
+**Plan**: `.agent/work-plans/issue-6/plan.md` at `6be6a44`
+**PR**: PR-less (--issue mode; reviewed in worktree `issue-manda_coverage-6`)
+**Verdict**: approve-with-suggestions
+
+### Findings
+- [ ] (suggestion) review-issue Action #1 (lifecycle test coverage) not carried into the plan — adoption path (`on_activate` construct+bind, `on_deactivate` reset) is exercised by nothing; `test_parameters.cpp` uses `rclcpp::Node`, not the LifecycleNode. Add a lifecycle fixture or record a known gap + follow-up issue. — `plan.md:60`
+- [ ] (suggestion) review-issue Action #2 (deadlock analysis: `ControlServer::on_change` → `set_parameter` → post-set `m_param_mutex`) dropped; Open Questions says "None". Carry the check forward as an implementation step. — `plan.md:84`
+- [ ] (suggestion) Teardown wired only in `on_deactivate()`; a direct active→shutdown skips it and leaves `control_server_` destruction to the node destructor — `control_server.hpp:38` warns against destroying while spinning. Also reset in `on_cleanup`/`on_shutdown`, or confirm deactivate always precedes shutdown. — `plan.md:45`
