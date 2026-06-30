@@ -161,10 +161,10 @@ Host local review (review-code), then publish with `Closes #5`.
 **Round**: 1 | **Ship**: recommended — no must-fix; builds, 9/9 tests pass, plan faithfully implemented; suggestions can be applied in a quick pass or tracked.
 
 ### Findings
-- [ ] (suggestion) Data race: post-set callback (param-service default group) writes m_swath_overlap/m_max_bend_angle/distance members/m_swath_record concurrently with ping/odom group reads under MultiThreadedExecutor — benign (independent aligned scalar doubles) but formal UB; use atomic/mutex/shared group or document — `src/SurveyPath.cpp:178`
-- [ ] (suggestion) On-set VALIDATE callback type-check is unreachable (statically-typed doubles → rclcpp rejects type mismatch before callback); the Phase-3 `reason` it claims to produce never fires — drop or strengthen — `src/SurveyPath.cpp:156`
-- [ ] (suggestion) Three live params (waypoint_distance_threshold, lead_in_distance, lead_out_distance) have no getter/apply-path test; a wrong-member copy-paste would pass all tests — add getters + assertions — `test/test_parameters.cpp:110`
-- [ ] (suggestion) Range-rejection `reason` is rclcpp-generic, not operator-tailored, despite the design comment implying operator-facing diagnostics — `src/SurveyPath.cpp:152`
+- [x] (suggestion) Data race: post-set callback (param-service default group) writes m_swath_overlap/m_max_bend_angle/distance members/m_swath_record concurrently with ping/odom group reads under MultiThreadedExecutor — benign (independent aligned scalar doubles) but formal UB; use atomic/mutex/shared group or document — `src/SurveyPath.cpp:178`
+- [x] (suggestion) On-set VALIDATE callback type-check is unreachable (statically-typed doubles → rclcpp rejects type mismatch before callback); the Phase-3 `reason` it claims to produce never fires — drop or strengthen — `src/SurveyPath.cpp:156`
+- [x] (suggestion) Three live params (waypoint_distance_threshold, lead_in_distance, lead_out_distance) have no getter/apply-path test; a wrong-member copy-paste would pass all tests — add getters + assertions — `test/test_parameters.cpp:110`
+- [x] (suggestion) Range-rejection `reason` is rclcpp-generic, not operator-tailored, despite the design comment implying operator-facing diagnostics — `src/SurveyPath.cpp:152`
 
 ### Notes
 - Static analysis: cppcheck clean; `cpplint` not installed on this host (C++ style unchecked).
@@ -198,3 +198,30 @@ Address all four suggestions before publishing, per these per-finding decisions:
   new value (so a wrong-member copy-paste in the apply callback would fail).
 Re-run the package build + tests (expect all to pass); then the host
 re-dispatches review-code.
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 17:35 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Branch**: feature/issue-5 at `de7819b`
+**Addressed**: Local Review (Pre-Push) of 2026-06-30 17:22 +00:00 at `3f50f92` (all 4 suggestions, per the operator decision recorded in that entry)
+**Commits**: 6526cc1, de7819b
+
+### Actions
+- [x] Data race on shared tuning members / `m_swath_record` between post-set apply and ping/odom planning reads — `src/SurveyPath.cpp` — added `m_param_mutex`, held by the post-set apply callback and by both `pingCallback`/`odomCallback`, so the apply serializes against the concurrent planning reads under a MultiThreadedExecutor (operator decision (1): fix, not document — chose the mutex since parameter callbacks may not honor subscription callback groups). Locks taken only at the callback entry points; the helpers (`CreateNewPath`, `extendPathForLeadInOut`) run under those locks, so the non-recursive mutex is never re-entered. (`6526cc1`)
+- [x] Vestigial on-set VALIDATE callback (unreachable type-check; `reason` never fires) — `src/SurveyPath.cpp` — dropped `add_on_set_parameters_callback`, its handle, and the now-unused `live_double_params` set / `<set>` include; documented that type+range rejection (with rclcpp's generic `reason`) is enforced by the descriptors before any callback fires (operator decision (2+4): drop). (`6526cc1`)
+- [x] Range-rejection `reason` is rclcpp-generic, not operator-tailored — `src/SurveyPath.cpp` — resolved by the same drop: operator-tailored reasons for range violations are unachievable via callbacks (rclcpp rejects first), so the design comment claiming operator-facing diagnostics is removed (operator decision (2+4)). (`6526cc1`)
+- [x] No getter/apply-path test for the three distance params — `test/test_parameters.cpp` — added const getters `waypoint_distance_threshold()`/`lead_in_distance()`/`lead_out_distance()` and extended `InRangeSetUpdatesLiveState` to assert each getter reflects the new value after an in-range set, so a wrong-member copy-paste in the apply callback now fails a test (operator decision (3)). (`de7819b`)
+
+### Build & test
+- `colcon build --packages-up-to manda_coverage`: success (only pre-existing unused-parameter warnings on legacy `action_server.cpp`).
+- `colcon test --packages-select manda_coverage`: gtest **9/9 pass, 0 failures** (the new distance-getter assertions pass). The 5 `colcon test-result` failures (copyright, cpplint, flake8, lint_cmake, uncrustify) are the same pre-existing ament_lint debt on the legacy MOOS-derived code documented in the prior Implementation entry — added lines carry no trailing whitespace/tabs and introduce no new lint categories.
+
+### Notes
+- `plan.md` still describes a validate/apply *split* (on-set + post-set); the on-set half is now gone. Left as-is — the findings targeted code/tests, not the plan, and this entry records the divergence so a re-review can see it.
+
+### Next step
+Lifecycle: **Implementation** → **review-code** (re-review the fixes). Hand off to a fresh-context sub-agent:
+
+    .agent/scripts/dispatch_subagent.sh --mode in-process --issue 5 --skill review-code
