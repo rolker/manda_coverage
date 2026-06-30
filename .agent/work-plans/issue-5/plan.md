@@ -132,7 +132,7 @@ is invoked.
 | `lead_in_distance` gets a `[0, ∞)` descriptor | Same benign effect — negative lead-in values rejected | Yes (descriptor added; implicit change) |
 | `lead_out_distance` gets a `[0, ∞)` descriptor | Same benign effect — negative lead-out values rejected | Yes (descriptor added; implicit change) |
 | `GetMinAllowableSwath()` added to `RecordSwath` | None — pure addition | Yes |
-| Validate/apply split (on-set + post-set callbacks) | Both handles must be reset in `cleanup()` so they unregister on lifecycle teardown | Yes (step 4) |
+| Post-set apply callback | Handle must be reset in `cleanup()` so it unregisters on lifecycle teardown; the apply path is guarded by `m_param_mutex` against the planning readers | Yes (step 4) |
 
 ## Open Questions
 

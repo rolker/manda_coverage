@@ -131,10 +131,13 @@ private:
     post_set_param_callback_handle_;
 
   // Serializes the post-set apply path (param-service callback group) against
-  // the planning readers in pingCallback/odomCallback (their own callback
-  // group), which run concurrently under a MultiThreadedExecutor. Guards the
-  // cached tuning members (m_swath_overlap, m_max_bend_angle, the distance
-  // members) and m_swath_record's setter-mutated state.
+  // the planning readers — pingCallback/odomCallback and the action-server
+  // set_goal — which run in other callback group(s) concurrently with the apply
+  // under a MultiThreadedExecutor. (ping and odom share one MutuallyExclusive
+  // group, so the executor already serializes them with each other; this mutex
+  // is about the param-apply-vs-planning races.) Guards the cached tuning
+  // members (m_swath_overlap, m_max_bend_angle, the distance members) and
+  // m_swath_record's setter-mutated state.
   std::mutex m_param_mutex;
 
   std::function<void(bool)> done_callback_;

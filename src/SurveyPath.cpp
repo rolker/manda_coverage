@@ -155,9 +155,10 @@ void SurveyPath::configure()
   //
   // APPLY: runs after the set is committed, so cached members and live
   // RecordSwath state are updated only once the whole set has been accepted.
-  // The lock serializes this apply against the planning readers in
-  // ping/odomCallback, which run in a different callback group concurrently
-  // under a MultiThreadedExecutor.
+  // This apply runs in the parameter-service callback group; the lock
+  // serializes it against the planning readers (ping/odomCallback and the
+  // action-server set_goal), which run in their own callback group(s)
+  // concurrently under a MultiThreadedExecutor.
   post_set_param_callback_handle_ =
     parameter_interface->add_post_set_parameters_callback(
       [this](const std::vector<rclcpp::Parameter> & parameters)
