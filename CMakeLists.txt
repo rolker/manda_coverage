@@ -9,6 +9,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(marine_control REQUIRED)
 find_package(marine_nav_interfaces REQUIRED)
 find_package(marine_nav_utilities REQUIRED)
 find_package(nav_2d_utils REQUIRED)
@@ -85,7 +86,7 @@ ament_export_dependencies(
 
 # Action server
 
-add_executable(${PROJECT_NAME}_action_server 
+add_executable(${PROJECT_NAME}_action_server
   src/action_server.cpp
   src/main.cpp
 )
@@ -93,6 +94,7 @@ add_executable(${PROJECT_NAME}_action_server
 
 target_link_libraries(${PROJECT_NAME}_action_server
   ${PROJECT_NAME}
+  marine_control::marine_control
   ${marine_nav_interfaces_TARGETS}
   marine_nav_utilities::marine_nav_utilities
   rclcpp::rclcpp
@@ -113,11 +115,32 @@ if(BUILD_TESTING)
   # ament_cmake_ros provides ament_add_ros_isolated_gtest. It is already a
   # buildtool_depend, so no package.xml test_depend is required.
   find_package(ament_cmake_ros REQUIRED)
+  find_package(marine_control_interfaces REQUIRED)
 
   ament_add_ros_isolated_gtest(test_parameters test/test_parameters.cpp)
   target_link_libraries(test_parameters
     ${PROJECT_NAME}
     rclcpp::rclcpp
+  )
+
+  # Lifecycle test for the ControlServer adoption. Compiles action_server.cpp
+  # directly (it lives in the executable, not the ${PROJECT_NAME} library) so the
+  # on_activate/on_deactivate paths can be driven through the node's transitions.
+  ament_add_ros_isolated_gtest(test_control_server_lifecycle
+    test/test_control_server_lifecycle.cpp
+    src/action_server.cpp
+  )
+  target_link_libraries(test_control_server_lifecycle
+    ${PROJECT_NAME}
+    marine_control::marine_control
+    ${marine_control_interfaces_TARGETS}
+    ${marine_nav_interfaces_TARGETS}
+    marine_nav_utilities::marine_nav_utilities
+    rclcpp::rclcpp
+    rclcpp_action::rclcpp_action
+  )
+  ament_target_dependencies(test_control_server_lifecycle
+    nav2_util
   )
 endif()
 

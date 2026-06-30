@@ -155,10 +155,10 @@ void SurveyPath::configure()
   //
   // APPLY: runs after the set is committed, so cached members and live
   // RecordSwath state are updated only once the whole set has been accepted.
-  // This apply runs in the parameter-service callback group; the lock
-  // serializes it against the planning readers (ping/odomCallback and the
-  // action-server set_goal), which run in their own callback group(s)
-  // concurrently under a MultiThreadedExecutor.
+  // The lock serializes this apply against the planning readers (ping/odomCallback
+  // and the action-server set_goal). The node runs on a SingleThreadedExecutor
+  // (main.cpp), so these paths are already serialized by the executor; the lock is
+  // retained defensively to guard the param-apply-vs-planning invariant.
   post_set_param_callback_handle_ =
     parameter_interface->add_post_set_parameters_callback(
       [this](const std::vector<rclcpp::Parameter> & parameters)
@@ -217,11 +217,10 @@ void SurveyPath::set_goal(const geometry_msgs::msg::PolygonStamped &goal)
   // Held for the whole callback: it reads lead_in_distance_/lead_out_distance_
   // (via DetermineStartAndTurn -> extendPathForLeadInOut) and mutates
   // m_swath_record (SetOutputSide, ResetLine), all of which the post-set apply
-  // callback updates from another callback group. set_goal runs in the
-  // action-server's default callback group, concurrent with that apply path
-  // under a MultiThreadedExecutor, so it must serialize against it too. The
-  // callees reached from here (DetermineStartAndTurn, extendPathForLeadInOut,
-  // sendPath) must NOT re-lock — the mutex is non-recursive.
+  // callback also updates. The SingleThreadedExecutor (main.cpp) already serializes
+  // set_goal against that apply path; the lock is retained defensively to document
+  // and guard the invariant. The callees reached from here (DetermineStartAndTurn,
+  // extendPathForLeadInOut, sendPath) must NOT re-lock — the mutex is non-recursive.
   std::lock_guard<std::mutex> lock(m_param_mutex);
 
   RCLCPP_INFO_STREAM(logger_, "Goal received");

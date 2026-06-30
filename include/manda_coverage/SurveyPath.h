@@ -130,14 +130,14 @@ private:
   rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
     post_set_param_callback_handle_;
 
-  // Serializes the post-set apply path (param-service callback group) against
-  // the planning readers — pingCallback/odomCallback and the action-server
-  // set_goal — which run in other callback group(s) concurrently with the apply
-  // under a MultiThreadedExecutor. (ping and odom share one MutuallyExclusive
-  // group, so the executor already serializes them with each other; this mutex
-  // is about the param-apply-vs-planning races.) Guards the cached tuning
-  // members (m_swath_overlap, m_max_bend_angle, the distance members) and
-  // m_swath_record's setter-mutated state.
+  // Serializes the post-set apply path against the planning readers
+  // (pingCallback/odomCallback and the action-server set_goal). The node now runs
+  // on a SingleThreadedExecutor (see main.cpp), so the executor already serializes
+  // every callback and these paths cannot actually run concurrently; this mutex is
+  // retained defensively to document and protect the param-apply-vs-planning
+  // invariant should the executor ever change back to multi-threaded. Guards the
+  // cached tuning members (m_swath_overlap, m_max_bend_angle, the distance
+  // members) and m_swath_record's setter-mutated state.
   std::mutex m_param_mutex;
 
   std::function<void(bool)> done_callback_;

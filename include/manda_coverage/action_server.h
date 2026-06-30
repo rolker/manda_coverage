@@ -5,6 +5,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
+#include "marine_control/control_server.hpp"
 #include "manda_coverage/SurveyPath.h"
 
 namespace manda_coverage
@@ -51,6 +52,12 @@ private:
 
   std::shared_ptr<SurveyPath> survey_path_;
   std::shared_ptr<GoalHandleComputeSonarCoveragePath> current_goal_handle_;
+
+  // Bridge-side operator control (ADR-0003). Constructed in on_activate(),
+  // reset in every teardown path. The server is active as soon as it is
+  // constructed, so lifecycle gating is achieved by construct-on-activate /
+  // reset-on-teardown rather than by the server itself.
+  std::unique_ptr<marine_control::ControlServer> control_server_;
 
 };
 
