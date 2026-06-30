@@ -241,7 +241,7 @@ Lifecycle: **Implementation** → **review-code** (re-review the fixes). Hand of
 ### Findings
 - [x] (must-fix) `set_goal()` reads live-settable `lead_in_distance_`/`lead_out_distance_` (via `DetermineStartAndTurn`→`extendPathForLeadInOut`) and mutates `m_swath_record` without `m_param_mutex`; runs in the action-server default callback group (no group on `create_server`; MultiThreadedExecutor) concurrent with the param-apply writer — same-location data race the round-1 mutex does not cover. Fix: lock `m_param_mutex` at top of `set_goal()` (callees don't re-lock). Cross-pass confirmed (Lens A + Lens B) — `src/SurveyPath.cpp:284`
 - [x] (suggestion) `waypoint_distance_threshold` inclusive lower bound `0.0` allows a value that makes the waypoint-reached checks never fire (stalls transitions); consider an epsilon lower bound — `src/SurveyPath.cpp:122`
-- [ ] (suggestion) plan.md Context synced to post-set-only, but Files-to-Change/ADR tables + step 6 still reference the dropped on-set callback / "four getters" (seven added) — `.agent/work-plans/issue-5/plan.md:102`
+- [x] (suggestion) plan.md Context synced to post-set-only, but Files-to-Change/ADR tables + step 6 still reference the dropped on-set callback / "four getters" (seven added) — `.agent/work-plans/issue-5/plan.md:102` (deferred: operator decision (round 2) assigns the plan.md sync to the HOST; address-findings must not touch plan.md to avoid a conflicting edit — already done in commit 945904d)
 
 ### Notes
 - Round-1 suggestions (data race on tuning members, vestigial on-set callback, distance getter/test gap, generic reason) all verified addressed.
@@ -272,3 +272,26 @@ Address all three findings:
   (Files-to-Change/ADR tables + step 6 getter count) directly; address-findings
   should NOT touch `plan.md` to avoid a conflicting edit.
 Re-run the package build + tests (expect all pass); host re-dispatches review-code.
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 17:55 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Branch**: feature/issue-5 at `4614089`
+**Addressed**: Local Review (Pre-Push) of 2026-06-30 17:47 +00:00 at `c3faef8` (round 2 — 1 must-fix + 2 suggestions, per the operator decision recorded in that entry)
+**Commits**: 249f62f, 4614089
+
+### Actions
+- [x] (must-fix) `set_goal()` data race on the live tuning members / `m_swath_record` — `src/SurveyPath.cpp:210` — took `m_param_mutex` at the top of `set_goal()` so it serializes against the post-set apply writer under a MultiThreadedExecutor. `set_goal` reads `lead_in_distance_`/`lead_out_distance_` via `DetermineStartAndTurn`→`extendPathForLeadInOut` and mutates `m_swath_record` (`SetOutputSide`, `ResetLine`); it runs in the action-server's default callback group, concurrent with the apply path. Verified the call tree under `set_goal()` (`DetermineStartAndTurn`, `extendPathForLeadInOut`, `sendPath`, `m_swath_record` methods) never re-locks the non-recursive mutex, and that the only other lockers (post-set apply, ping/odom callbacks) do not call `set_goal()` → no self-deadlock. Audited every reader of the live members: `waypoint_distance_threshold_`/`m_swath_overlap`/`m_max_bend_angle`/distance members/`m_swath_record` are now all accessed only under the lock (odom/ping callbacks, the apply callback, `set_goal`, and `CreateNewPath` which runs under the odom lock) or at `configure()` time before the executor spins; `SwathOutsideRegion()` is dead code (never called). (`249f62f`)
+- [x] (suggestion) `waypoint_distance_threshold` zero lower bound can stall waypoint-reached transitions — `src/SurveyPath.cpp:122` — replaced the inclusive `0.0` `from_value` with `0.1` m (strictly positive, below any realistic survey threshold) so the `distance < threshold` checks in `odomCallback` can always fire; default stays `4.0`. Added a comment explaining why the floor is non-zero. (`4614089`)
+- [x] (suggestion) plan.md Files-to-Change/ADR/step-6 tables still reference the dropped on-set callback / "four getters" — `.agent/work-plans/issue-5/plan.md:102` (deferred: the round-2 operator decision assigns the plan.md sync to the HOST and directs address-findings not to touch `plan.md` to avoid a conflicting edit; the HOST already completed it in commit `945904d`)
+
+### Build & test
+- `colcon build --packages-up-to manda_coverage`: success (only pre-existing unused-parameter warnings on legacy `action_server.cpp`).
+- `colcon test --packages-select manda_coverage`: gtest **9/9 pass, 0 failures** (`test_parameters.gtest.xml`). The 5 `colcon test-result` failures (copyright, cpplint, flake8, lint_cmake, uncrustify) are the same pre-existing ament_lint debt on the legacy MOOS-derived code documented in the prior Implementation entries — the added lines (comments, one lock, one literal change) carry no trailing whitespace/tabs and introduce no new lint categories.
+
+### Next step
+Lifecycle: **Implementation** → **review-code** (re-review the fixes). Hand off to a fresh-context sub-agent:
+
+    .agent/scripts/dispatch_subagent.sh --mode in-process --issue 5 --skill review-code
