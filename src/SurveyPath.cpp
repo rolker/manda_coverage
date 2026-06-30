@@ -7,7 +7,7 @@
 
 #include <iterator>
 #include <limits>
-#include <set>
+#include <mutex>
 //#include <regex>
 #include "rcl_interfaces/msg/floating_point_range.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
@@ -143,42 +143,22 @@ void SurveyPath::configure()
   m_swath_record.SetInterval(swath_record_interval);
   m_swath_record.SetMinAllowableSwath(min_allowable_swath);
 
-  // The live-settable coverage-density parameters, all of type double.
-  static const std::set<std::string> live_double_params{
-    "waypoint_distance_threshold", "lead_in_distance", "lead_out_distance",
-    "swath_overlap", "max_bend_angle", "swath_record_interval",
-    "min_allowable_swath"};
-
-  // VALIDATE: runs before the set is committed. Only checks that the proposed
-  // values are well-formed (correct type); does not mutate any cached state.
-  // Descriptor floating-point-range violations are rejected by rclcpp before
-  // this callback fires, so we only guard against a type mismatch here.
-  on_set_param_callback_handle_ =
-    parameter_interface->add_on_set_parameters_callback(
-      [](const std::vector<rclcpp::Parameter> & parameters)
-      {
-        rcl_interfaces::msg::SetParametersResult result;
-        result.successful = true;
-        for(const auto & parameter : parameters)
-        {
-          if(live_double_params.count(parameter.get_name()) &&
-             parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE)
-          {
-            result.successful = false;
-            result.reason = "Parameter '" + parameter.get_name() +
-              "' must be a double";
-            break;
-          }
-        }
-        return result;
-      });
-
+  // Type and range rejection are enforced by the parameter descriptors above:
+  // rclcpp validates the proposed value (correct type, within the declared
+  // floating-point range) and rejects it with a generic `reason` *before* any
+  // callback fires. There is therefore no on-set validation callback — for
+  // these statically-typed, range-bounded doubles it would be dead code.
+  //
   // APPLY: runs after the set is committed, so cached members and live
   // RecordSwath state are updated only once the whole set has been accepted.
+  // The lock serializes this apply against the planning readers in
+  // ping/odomCallback, which run in a different callback group concurrently
+  // under a MultiThreadedExecutor.
   post_set_param_callback_handle_ =
     parameter_interface->add_post_set_parameters_callback(
       [this](const std::vector<rclcpp::Parameter> & parameters)
       {
+        std::lock_guard<std::mutex> lock(m_param_mutex);
         for(const auto & parameter : parameters)
         {
           const auto & name = parameter.get_name();
@@ -213,7 +193,6 @@ void SurveyPath::cleanup()
   m_ping_subscription.reset();
   m_display_publisher.reset();
   m_odom_subscription.reset();
-  on_set_param_callback_handle_.reset();
   post_set_param_callback_handle_.reset();
 }
 
@@ -304,6 +283,14 @@ void SurveyPath::set_goal(const geometry_msgs::msg::PolygonStamped &goal)
 
 void SurveyPath::odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg)
 {
+  // Held for the whole callback: it reads waypoint_distance_threshold_ and,
+  // via CreateNewPath, the swath_overlap/max_bend_angle/lead-distance members
+  // and m_swath_record — all mutated by the post-set apply callback in another
+  // callback group. The lock serializes against that apply path. Helpers reached
+  // from here (CreateNewPath, extendPathForLeadInOut) must NOT re-lock — the
+  // mutex is non-recursive.
+  std::lock_guard<std::mutex> lock(m_param_mutex);
+
   const auto& odom = *odom_msg;
   current_odom_ = odom;
 
@@ -337,6 +324,11 @@ void SurveyPath::odomCallback(const nav_msgs::msg::Odometry::UniquePtr &odom_msg
 
 void SurveyPath::pingCallback(const sensor_msgs::msg::PointCloud2::SharedPtr ping)
 {
+  // Held for the whole callback: it mutates and reads m_swath_record
+  // (AddRecord, SwathOuterPts), whose interval/min-swath thresholds the
+  // post-set apply callback updates from another callback group. Serializes
+  // against that apply path.
+  std::lock_guard<std::mutex> lock(m_param_mutex);
 
   RCLCPP_DEBUG_STREAM_THROTTLE(logger_, *clock_, 1000, "Ping!" << " recording: " << m_recording << " state: " << (m_state==transit?"transit":"survey") << " x: " << current_odom_.pose.pose.position.x << " y: " << current_odom_.pose.pose.position.y);
 

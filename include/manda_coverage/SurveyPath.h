@@ -8,6 +8,8 @@
 #ifndef SurveyPath_HEADER
 #define SurveyPath_HEADER
 
+#include <mutex>
+
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/node_interfaces/node_interfaces.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
@@ -117,13 +119,20 @@ private:
   rclcpp::Logger logger_;
   rclcpp::Clock::SharedPtr clock_;
 
-  // Parameter-callback handles. The on-set callback validates proposed values;
-  // the post-set callback applies committed values to cached members and live
-  // RecordSwath state. Both are reset in cleanup() to unregister on teardown.
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
-    on_set_param_callback_handle_;
+  // Parameter-callback handle. The post-set callback applies committed values
+  // to cached members and live RecordSwath state; it is reset in cleanup() to
+  // unregister on teardown. Type/range rejection is enforced by the parameter
+  // descriptors (rclcpp validates before the set commits), so no on-set
+  // validation callback is registered.
   rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
     post_set_param_callback_handle_;
+
+  // Serializes the post-set apply path (param-service callback group) against
+  // the planning readers in pingCallback/odomCallback (their own callback
+  // group), which run concurrently under a MultiThreadedExecutor. Guards the
+  // cached tuning members (m_swath_overlap, m_max_bend_angle, the distance
+  // members) and m_swath_record's setter-mutated state.
+  std::mutex m_param_mutex;
 
   std::function<void(bool)> done_callback_;
   std::function<void(const nav_msgs::msg::Path&, int)> next_line_callback_;
