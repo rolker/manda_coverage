@@ -53,7 +53,10 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn MandaC
   // set_parameter or re-enters the ControlServer, so m_param_mutex is the only
   // lock held across it and there is no lock-order inversion. With the
   // SingleThreadedExecutor (main.cpp) there is moreover no concurrency between
-  // these lifecycle bind/reset transitions and the server's own callbacks.
+  // these lifecycle bind/reset transitions and the server's own callbacks on the
+  // normal (lifecycle-manager-driven) path — though the SIGINT-while-active
+  // teardown still runs reset() on the signal-handler thread (see main.cpp and
+  // rolker/marine_control#12).
   marine_control::ControlServerOptions opts;
   opts.device_name = "Manda Coverage";
   control_server_ = std::make_unique<marine_control::ControlServer>(this, opts);
@@ -75,6 +78,10 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn MandaC
   RCLCPP_INFO(get_logger(), "Deactivating MandaCoverageActionServer...");
   // Tear down the ControlServer while the node is being deactivated (its timer
   // and change subscription stop). reset() is idempotent on a null pointer.
+  // On a lifecycle-manager-driven deactivate this runs on the executor thread,
+  // serialized with the server's callbacks; on a SIGINT-while-active teardown it
+  // runs on the signal-handler thread instead, leaving a one-shot
+  // teardown-vs-heartbeat window (see main.cpp and rolker/marine_control#12).
   control_server_.reset();
   survey_path_->deactivate();
   destroyBond();
