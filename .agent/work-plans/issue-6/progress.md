@@ -400,3 +400,33 @@ are non-blocking polish on an approved diff.
 Lifecycle: **Implementation** → **review-code** (re-review the fixes). No push / PR
 (host publishes after local review). The re-review reads the diff cold and confirms
 the four suggestions are genuinely resolved.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-06-30 21:41 +00:00
+**By**: Claude Opus
+**Verdict**: approved
+
+**Branch**: feature/issue-6 at `a2fc991`
+**Mode**: pre-push
+**Depth**: Deep (reason: concurrency/lifecycle change + ≥200 changed lines)
+**Must-fix**: 0 | **Suggestions**: 1
+**Round**: 3 | **Ship**: recommended — round-1 must-fix (MTExecutor bind/teardown race) remains structurally resolved by the SingleThreadedExecutor; all four round-2 suggestions genuinely applied; 0 new must-fix; the sole suggestion is pre-existing and out of scope.
+
+### Findings
+- [ ] (suggestion) Pre-existing, out of scope: `action_server_` (created in `on_configure`) is not reset in `on_cleanup`/`on_shutdown`, unlike `survey_path_`/`control_server_`; a cleanup→reconfigure cycle would re-create_server on the same name. Predates this PR; noted only because this change establishes the reset-in-every-teardown discipline. Consider a separate issue. — `src/action_server.cpp:21,92-117`
+
+### Round-2 fix verification
+- [x] Threading comments scoped honestly (SingleThreadedExecutor serializes only the lifecycle-manager-driven path; SIGINT-while-active reset() still on the signal-handler thread → `marine_control#12`) — `src/main.cpp:25-32`, `src/action_server.cpp:54-59,81-84`
+- [x] Responsiveness tradeoff recorded — `src/main.cpp:35-39`
+- [x] Test `TearDown` removes `node_` from the executor before reset — `test/test_control_server_lifecycle.cpp:80`
+- [x] Test ends via the shipped lifecycle teardown (deactivate→shutdown), not the unique_ptr destructor — `test/test_control_server_lifecycle.cpp:191-208`
+
+### Specialist notes
+- Static analysis: new test file fully clean (uncrustify/cpplint/copyright); CMakeLists clean; package.xml well-formed. Changed source files carry only pre-existing legacy uncrustify debt — verified the `origin/jazzy` base of `action_server.h` diverges identically, so the new `control_server_` member adds no new finding. Zero new lint on changed lines.
+- Governance: ADR-0003 (canonical D4/D5/D6 impl) and ADR-0008 satisfied; udp_bridge wiring correctly deferred to #358. Round-1 "test what breaks" Watch closed by the lifecycle test.
+- Plan drift: zero — implementation matches the plan's Files-to-Change and all six approach steps.
+- Adversarial (2 disjoint passes, no must-fix): Lens A — 7 bound names exactly match the 7 `declare_bounded` params + the post-set apply switch; re-activate path sound (WeakPtr group expiry, auto-add new group). Lens B — no CMake ODR (action_server.cpp not in the library, only executable+test); deadlock comment accurate (post-set fires inline inside set_parameters); SIGINT residual honestly documented + tracked (#12); bond heartbeat unaffected by single-threading.
+
+### Next step
+Lifecycle: **Local Review (approved)** → host publishes (push / open PR with `Closes #6`) → **triage-reviews**. Verdict is approved (0 must-fix); the single suggestion is pre-existing/out-of-scope and need not block the push. Static analysis clean on changed lines; legacy MOOS lint debt untouched and out of scope.
