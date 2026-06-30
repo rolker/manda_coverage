@@ -79,12 +79,15 @@ is invoked.
    the new test can verify the live state update without relying on internal
    access.
 
-6. **Add test-accessor methods to `SurveyPath.h`** — Add four `const` getters
+6. **Add test-accessor methods to `SurveyPath.h`** — Add seven `const` getters
    so tests can verify cached members without friend-class access:
    `double swath_overlap() const`, `double max_bend_angle() const`,
    `double swath_record_interval() const` (delegates to
-   `m_swath_record.IntervalDist()`), and `double min_allowable_swath() const`
-   (delegates to `m_swath_record.GetMinAllowableSwath()`).
+   `m_swath_record.IntervalDist()`), `double min_allowable_swath() const`
+   (delegates to `m_swath_record.GetMinAllowableSwath()`), and — added in the
+   round-2 fix to close the apply-path test gap — `double
+   waypoint_distance_threshold() const`, `double lead_in_distance() const`, and
+   `double lead_out_distance() const`.
 
 7. **Extend `test_parameters.cpp`** — Add two tests that go beyond the existing
    `InRangeAccepted`/`OutOfRangeRejection` (which only assert
@@ -99,8 +102,8 @@ is invoked.
 
 | File | Change |
 |------|--------|
-| `src/SurveyPath.cpp` | Mark `soundings_topic`/`display_topic` read-only; use `declare_bounded` for distance params; add on-set (validate) + post-set (apply) callbacks; reset both handles in `cleanup()` |
-| `include/manda_coverage/SurveyPath.h` | Add `on_set_param_callback_handle_` and `post_set_param_callback_handle_` members; add four const getter methods |
+| `src/SurveyPath.cpp` | Mark `soundings_topic`/`display_topic` read-only; use `declare_bounded` for distance params; add post-set (apply) callback guarded by `m_param_mutex` (also taken by `pingCallback`/`odomCallback`/`set_goal`); reset the handle in `cleanup()` |
+| `include/manda_coverage/SurveyPath.h` | Add `post_set_param_callback_handle_` member + `std::mutex m_param_mutex`; add seven const getter methods |
 | `include/manda_coverage/RecordSwath.h` | Add `GetMinAllowableSwath()` getter |
 | `test/test_parameters.cpp` | Extend with live-update and rejection tests |
 
@@ -118,7 +121,7 @@ is invoked.
 
 | ADR | Triggered | How addressed |
 |---|---|---|
-| ADR-0008 (ROS 2 conventions) | Yes | `add_on_set_parameters_callback` returning `rcl_interfaces::msg::SetParametersResult` is the standard pattern; registration done in `on_configure` equivalent (`configure()`) after all declarations, matching lifecycle best practice |
+| ADR-0008 (ROS 2 conventions) | Yes | `add_post_set_parameters_callback` applying committed values is the standard pattern; descriptor `floating_point_range` enforces type/range rejection upstream (no on-set callback needed); registration done in the `on_configure` equivalent (`configure()`) after all declarations, matching lifecycle best practice |
 
 ## Consequences
 

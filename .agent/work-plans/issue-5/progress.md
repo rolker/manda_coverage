@@ -251,3 +251,24 @@ Lifecycle: **Implementation** → **review-code** (re-review the fixes). Hand of
 
 ### Next step
 Verdict is **changes-requested** → host dispatches **address-findings** to work the open must-fix (lock `set_goal`), then re-dispatches **review-code**. Diff is not pushed until a pre-push review returns **approved**.
+
+### Operator decision (round 2, 2026-06-30)
+Address all three findings:
+- **(must-fix) Lock `set_goal()`.** Take `m_param_mutex` at the top of
+  `set_goal()` (it reads `lead_in_distance_`/`lead_out_distance_` via
+  `DetermineStartAndTurn`→`extendPathForLeadInOut` and mutates `m_swath_record`
+  concurrently with the param-apply writer). Callees must NOT re-lock the
+  non-recursive mutex — verify the call tree under `set_goal()` doesn't reach a
+  path that already holds `m_param_mutex` (the apply callback and ping/odom
+  callbacks are the only other lockers, and they don't call `set_goal()`), so no
+  self-deadlock. Confirm no remaining unguarded accessor of the live members
+  exists (audit every reader of `lead_in_distance_`/`lead_out_distance_`/
+  `m_swath_overlap`/`m_max_bend_angle`/`m_swath_record`).
+- **(suggestion) Epsilon lower bound on `waypoint_distance_threshold`.** Replace
+  the inclusive `0.0` lower bound with a small positive value (e.g. `0.1` m) so a
+  zero threshold can't stall waypoint-reached transitions. Keep the default
+  `4.0`. Add a brief comment on why the floor is non-zero.
+- **(suggestion) plan.md tables** — the HOST will finish the plan.md sync
+  (Files-to-Change/ADR tables + step 6 getter count) directly; address-findings
+  should NOT touch `plan.md` to avoid a conflicting edit.
+Re-run the package build + tests (expect all pass); host re-dispatches review-code.
