@@ -290,3 +290,24 @@ decision (SingleThreadedExecutor in manda; address all three suggestions).
 Lifecycle: **Implementation** → **review-code** (re-review the fixes). No push / PR
 (host publishes after local review). Re-review reads the diff cold and confirms the
 race fix and the three suggestion fixes are genuinely resolved.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-06-30 19:23 +00:00
+**By**: Claude Code Agent (Claude Opus)
+**Verdict**: approved
+
+**Branch**: feature/issue-6 at `c442784`
+**Mode**: pre-push
+**Depth**: Deep (reason: ≥200 changed lines + concurrency/lifecycle change)
+**Must-fix**: 0 | **Suggestions**: 4
+**Round**: 2 | **Ship**: recommended — round-1 must-fix (MTExecutor bind/teardown race on the normal transition path) genuinely resolved; 0 new must-fix; residual items are a known marine_control adoption-gap + test/comment polish.
+
+### Findings
+- [ ] (suggestion) main.cpp/action_server.cpp threading comments overstate the guarantee: SingleThreadedExecutor serializes lifecycle-manager-driven transitions (executor thread) but nav2_util's rcl pre-shutdown callback drives deactivate/cleanup -> control_server_.reset() on the signal-handler thread, so the timer/sub-teardown-vs-heartbeat race persists on the SIGINT-while-active path; scope the comment + confirm the marine_control adoption-gap follow-up is filed — `src/main.cpp:16-25`, `src/action_server.cpp:54-56`
+- [ ] (suggestion) SingleThreadedExecutor responsiveness tradeoff: a long planning callback (odom/ping -> CreateNewPath -> PathPlan) now blocks the ControlServer heartbeat/change handling and action handling on the one thread; deliberate round-1 decision, worth recording — `src/main.cpp:25`
+- [ ] (suggestion) test TearDown never remove_node(node_) (only sub_node_); node_.reset() drops the owner while still registered — benign now, fragile if TearDown ever spins — `test/test_control_server_lifecycle.cpp:74-80`
+- [ ] (suggestion) test ends in active state; final control_server_ teardown runs from the unique_ptr destructor, not on_deactivate/on_shutdown (on_deactivate is still exercised mid-test) — `test/test_control_server_lifecycle.cpp:74-80`
+
+### Next step
+Lifecycle: **Local Review (approved)** → host publishes (push / open PR with `Closes #6`) → **triage-reviews**. Verdict is approved (0 must-fix); the 4 suggestions are non-blocking — apply the comment-scope fix opportunistically or carry forward. Static analysis clean on changed lines; pre-existing legacy MOOS lint debt untouched and out of scope.
