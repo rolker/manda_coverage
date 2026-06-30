@@ -45,13 +45,16 @@ in `on_deactivate()`.
    **Deadlock analysis (review-issue Action #2, carried forward).** An inbound
    `ControlValue` triggers `ControlServer::on_change` → `node->set_parameter`,
    which synchronously fires the post-set apply callback (`m_param_mutex`, from
-   #5). This chain is deadlock-free: `on_change` runs in the ControlServer's own
-   dedicated mutually-exclusive callback group (`control_server.hpp` threading
-   contract), the post-set apply runs in the parameter-service group, and neither
-   re-enters the other — the apply callback only copies validated values into
-   cached members / `RecordSwath` and never calls `set_parameter` or touches the
-   ControlServer. No lock-order inversion. A short version of this note lives in
-   `on_activate()` next to the construction.
+   #5). The apply runs **inline on `on_change`'s own thread** — rclcpp invokes
+   post-set callbacks synchronously inside `set_parameter`, not as a separate
+   callback-group dispatch — so `m_param_mutex` is acquired and released within
+   that one call. This chain is deadlock-free: the apply callback only copies
+   validated values into cached members / `RecordSwath` and never calls
+   `set_parameter` or re-enters the ControlServer, so `m_param_mutex` is the only
+   lock held across it and there is no lock-order inversion. With the
+   `SingleThreadedExecutor` (below) there is moreover no concurrency between the
+   lifecycle bind/reset transitions and the server's own callbacks. A short
+   version of this note lives in `on_activate()` next to the construction.
 
 4. **Reset in every teardown path** — `control_server_.reset()` placed before the
    existing `survey_path_` teardown in **`on_deactivate()`, `on_cleanup()`, and
@@ -64,15 +67,33 @@ in `on_deactivate()`.
    server is already gone (e.g. cleanup after deactivate, or a node that was
    configured but never activated).
 
-5. **Lifecycle test** (review-issue Action #1 / review-plan suggestion 1) —
+5. **SingleThreadedExecutor** (pre-push review round 1, must-fix) — `src/main.cpp`
+   spins the node on a `rclcpp::executors::SingleThreadedExecutor` rather than a
+   `MultiThreadedExecutor`. The ControlServer is constructed/bound in `on_activate`
+   and reset in the teardown paths while the node spins; its own
+   mutually-exclusive callback group could otherwise run on a different thread than
+   the lifecycle transitions, racing the unsynchronized `bindings_` map during bind
+   and racing timer/sub teardown against an in-flight heartbeat during reset — UB
+   per `control_server.hpp`'s "bind before spinning / destroy only when not
+   spinning" contract. A single executor thread serializes every callback, so both
+   races are structurally impossible. `m_param_mutex` (#5) is **retained**
+   defensively to document and guard the param-apply-vs-planning invariant should
+   the executor ever change back; the now-stale "MultiThreadedExecutor" rationale
+   comments in `SurveyPath.{h,cpp}` are updated to say so.
+
+6. **Lifecycle test** (review-issue Action #1 / review-plan suggestion 1) —
    `test/test_control_server_lifecycle.cpp`, wired via `ament_add_ros_isolated_gtest`.
    It drives `MandaCoverageActionServer` through `configure()`/`activate()` on a
-   `SingleThreadedExecutor`, asserts a `ControlSet` heartbeat arrives on
-   `~/control/state` with the seven bound knobs (`group == "Coverage"`), then
-   `deactivate()`s and asserts the heartbeat stops (teardown verified). The poll
-   loop uses `spin_some` + a steady-clock deadline (no fixed sleeps) for CI
-   robustness. This covers the `on_activate`/`on_deactivate` adoption paths that
-   the `rclcpp::Node`-based `test_parameters.cpp` cannot reach.
+   `SingleThreadedExecutor` (matching production), asserts a `ControlSet` heartbeat
+   arrives on `~/control/state` with the seven bound knobs (`group == "Coverage"`),
+   then `deactivate()`s and asserts the heartbeat stops (teardown verified), then
+   **re-activates** and asserts the heartbeat resumes with the seven re-bound knobs
+   (the deactivate→activate re-bind path, pre-push review suggestion). The poll
+   loop uses `spin_some` + a steady-clock deadline (no fixed sleeps), and the
+   pre-deactivate baseline is captured only after a bounded drain loop so an
+   in-flight RELIABLE heartbeat cannot read as a spurious "heartbeat continued".
+   This covers the `on_activate`/`on_deactivate` adoption paths that the
+   `rclcpp::Node`-based `test_parameters.cpp` cannot reach.
 
 ## Files to Change
 
@@ -82,7 +103,9 @@ in `on_deactivate()`.
 | `CMakeLists.txt` | Add `find_package(marine_control REQUIRED)`; add `marine_control::marine_control` to `target_link_libraries` for the action-server executable; in `BUILD_TESTING`, `find_package(marine_control_interfaces)` and register `test_control_server_lifecycle` (compiling `src/action_server.cpp` into it) |
 | `include/manda_coverage/action_server.h` | Include `marine_control/control_server.hpp`; add `std::unique_ptr<marine_control::ControlServer> control_server_` private member |
 | `src/action_server.cpp` | Construct + bind in `on_activate()` (with the deadlock-analysis comment); `control_server_.reset()` in `on_deactivate()`, `on_cleanup()`, and `on_shutdown()` |
-| `test/test_control_server_lifecycle.cpp` | New gtest exercising configure→activate (heartbeat with seven bound knobs) and deactivate (heartbeat stops) |
+| `src/main.cpp` | Spin on `SingleThreadedExecutor` (not `MultiThreadedExecutor`) so ControlServer callbacks never race the lifecycle bind/reset (pre-push review must-fix) |
+| `include/manda_coverage/SurveyPath.h`, `src/SurveyPath.cpp` | Update the `m_param_mutex` rationale comments: the node is now single-threaded, so the mutex is retained defensively (not for live MTExecutor concurrency) |
+| `test/test_control_server_lifecycle.cpp` | New gtest exercising configure→activate (heartbeat with seven bound knobs), deactivate (heartbeat stops), and re-activate (heartbeat resumes); bounded drain before the deactivate baseline |
 
 ## Principles Self-Check
 
