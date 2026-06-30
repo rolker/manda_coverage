@@ -109,6 +109,16 @@ install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  # ament_cmake_ros provides ament_add_ros_isolated_gtest. It is already a
+  # buildtool_depend, so no package.xml test_depend is required.
+  find_package(ament_cmake_ros REQUIRED)
+
+  ament_add_ros_isolated_gtest(test_parameters test/test_parameters.cpp)
+  target_link_libraries(test_parameters
+    ${PROJECT_NAME}
+    rclcpp::rclcpp
+  )
 endif()
 
 ament_package()
