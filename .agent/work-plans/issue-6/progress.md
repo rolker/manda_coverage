@@ -175,3 +175,21 @@ All three Plan Review suggestions were folded in.
 ### Next step
 Ready for review-code. No push / PR (host publishes after local review). PR will
 carry `Closes #6`.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-06-30 18:55 +00:00
+**By**: Claude Code Agent (Claude Opus)
+**Verdict**: changes-requested
+
+**Branch**: feature/issue-6 at `88e9578`
+**Mode**: pre-push
+**Depth**: Deep (reason: ≥200 changed lines + concurrency/lifecycle-relevant change)
+**Must-fix**: 1 | **Suggestions**: 3
+**Round**: 1 | **Ship**: continue — a genuine concurrency-correctness concern (race under the production MultiThreadedExecutor) warrants address-findings + re-review before push.
+
+### Findings
+- [ ] (must-fix) ControlServer construct/bind (`on_activate`) and reset (`on_deactivate`/`on_cleanup`/`on_shutdown`) run while the node spins on a `MultiThreadedExecutor` (`main.cpp:17`), violating `control_server.hpp`'s "bind before spinning / destroy only when not spinning" contract — the server's own MutuallyExclusive callback group can run on a different thread than the lifecycle transitions, racing the unsynchronized `bindings_` map during bind and racing timer/sub teardown against an in-flight heartbeat during reset (UB as shipped). Fix e.g. via SingleThreadedExecutor or shared callback group. — `src/action_server.cpp:55-64,76,88,101`
+- [ ] (suggestion) Deadlock-analysis comment misdescribes the mechanism: the post-set apply (`add_post_set_parameters_callback`, `SurveyPath.cpp:162`) runs synchronously inline on `on_change`'s thread, not a separate "parameter-service group"; conclusion (no deadlock) holds but the comment asserts non-existent thread-separation and omits the real bind/teardown race. — `src/action_server.cpp:44-54`
+- [ ] (suggestion) Lifecycle test uses SingleThreadedExecutor and transitions before `add_node`, so it cannot reproduce the production MTExecutor race or the deactivate→activate re-bind path; add an MT-executor / re-activation variant. — `test/test_control_server_lifecycle.cpp:90-94`
+- [ ] (suggestion) Single `spin_some()` before snapshotting `count_at_deactivate` may not drain a RELIABLE heartbeat in transit (minor flakiness; errs toward false failure, not false pass). — `test/test_control_server_lifecycle.cpp:127-138`
