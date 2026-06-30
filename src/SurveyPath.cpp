@@ -209,6 +209,16 @@ void SurveyPath::set_done_callback(std::function<void(bool)> done_callback)
 
 void SurveyPath::set_goal(const geometry_msgs::msg::PolygonStamped &goal)
 {
+  // Held for the whole callback: it reads lead_in_distance_/lead_out_distance_
+  // (via DetermineStartAndTurn -> extendPathForLeadInOut) and mutates
+  // m_swath_record (SetOutputSide, ResetLine), all of which the post-set apply
+  // callback updates from another callback group. set_goal runs in the
+  // action-server's default callback group, concurrent with that apply path
+  // under a MultiThreadedExecutor, so it must serialize against it too. The
+  // callees reached from here (DetermineStartAndTurn, extendPathForLeadInOut,
+  // sendPath) must NOT re-lock — the mutex is non-recursive.
+  std::lock_guard<std::mutex> lock(m_param_mutex);
+
   RCLCPP_INFO_STREAM(logger_, "Goal received");
 
   if(goal.polygon.points.empty())
