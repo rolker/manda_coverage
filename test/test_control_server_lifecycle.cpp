@@ -73,6 +73,11 @@ protected:
 
   void TearDown() override
   {
+    // Remove the lifecycle node from the executor before dropping our owning
+    // reference, so the executor never holds a node that is being destroyed.
+    // (The test adds node_ via get_node_base_interface(); remove_node is a no-op
+    // if a path left it un-added.)
+    executor_.remove_node(node_->get_node_base_interface());
     executor_.remove_node(sub_node_);
     sub_.reset();
     sub_node_.reset();
