@@ -214,6 +214,15 @@ double RecordSwath::SwathWidth(BoatSide side, unsigned int index)
         }
         // Widths below the minimum allowable swath are reported as no coverage,
         // which lets PathPlan's all_zero check signal survey completion.
+        //
+        // Phase 1 scope: the threshold is applied here in SwathWidth() only,
+        // not in the sibling accessors SwathOuterPts()/OuterPoint()/
+        // AllSwathWidths(). That is intentional — SwathWidth() is what feeds
+        // PathPlan's all_zero coverage-complete check, and the default
+        // threshold of 0.0 means no behavior change today. Threading the
+        // threshold consistently through the sibling accessors (so that
+        // sub-threshold points are handled identically everywhere when the
+        // threshold is non-zero) is deferred to a later phase.
         if (width < m_min_allowable_swath)
         {
             return 0;

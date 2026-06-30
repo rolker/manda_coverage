@@ -28,7 +28,12 @@ Current state (verified against source):
    `SetMinAllowableSwath(double)` — so `SurveyPath::configure()` can push
    parameter values after construction. Wire `m_min_allowable_swath` into
    `SwathWidth()`: return `0.0` when width is below the threshold (PathPlan's
-   `all_zero` check then naturally signals coverage-complete).
+   `all_zero` check then naturally signals coverage-complete). The threshold is
+   scoped to `SwathWidth()` only in Phase 1 — the sibling accessors
+   `SwathOuterPts()`/`OuterPoint()`/`AllSwathWidths()` are intentionally left
+   un-thresholded (the default threshold of `0.0` is no behavior change today;
+   consistent below-threshold handling across the siblings is deferred to a
+   later phase).
 
 2. **Declare parameters in `SurveyPath::configure()`** — follow the existing
    `has_parameter` + `declare_parameter` pattern. Add a
