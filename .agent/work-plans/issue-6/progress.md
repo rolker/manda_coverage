@@ -338,3 +338,65 @@ Address all four suggestions, then re-review:
   teardown path we actually ship.
 Re-run the package build + tests (expect all 10 pass); host re-dispatches review-code.
 The `marine_control` follow-up (#12) is already filed by the host.
+
+## Implementation
+**Status**: complete
+**When**: 2026-06-30 19:45 +00:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Branch**: feature/issue-6 at `33a1f55`
+**Addressed**: Local Review (Pre-Push) (2026-06-30 19:23 +00:00, branch `feature/issue-6` at `c442784`) — round 2, approved, 4 suggestions
+**Commits**:
+- `94e6976` docs: scope ControlServer threading comments for SIGINT teardown race (#6)
+- `7a1d33c` docs: record SingleThreadedExecutor responsiveness tradeoff (#6)
+- `d3b5ec1` test: remove lifecycle node from executor before reset in TearDown (#6)
+- `1eaf23c` test: end lifecycle test via deactivate/shutdown teardown path (#6)
+- `33a1f55` test: keep final-deactivate drain loop uncrustify-clean (#6)
+- (this entry) progress
+
+Addressed all four round-2 suggestions following the operator decision (address
+all four, then re-review). The verdict was already **approved** (0 must-fix); these
+are non-blocking polish on an approved diff.
+
+### Actions
+- [x] (suggestion) Threading comments overstated the guarantee — `src/main.cpp` and
+  the `on_activate` deadlock note + `on_deactivate` reset note in
+  `src/action_server.cpp` now state honestly that the `SingleThreadedExecutor`
+  serializes only the **lifecycle-manager-driven** transitions (executor thread),
+  while nav2_util's rcl pre-shutdown callback drives `deactivate`/`cleanup` →
+  `control_server_.reset()` on the **signal-handler thread** during SIGINT, leaving a
+  one-shot teardown-vs-heartbeat window at process exit. Each comment references the
+  general fix `rolker/marine_control#12` (already filed by the host). — `src/main.cpp:16-32`, `src/action_server.cpp:54-57,76-81`
+- [x] (suggestion) Responsiveness tradeoff recorded — a comment by the executor in
+  `src/main.cpp` notes the deliberate round-1 decision: single-threaded means a long
+  planning callback (odom/ping → CreateNewPath → PathPlan) blocks the ControlServer
+  heartbeat/change and action handling until it returns; acceptable for this
+  lightweight planner, revisit with the marine_control#12 fix if planning latency
+  starves operator control. — `src/main.cpp:34-40`
+- [x] (suggestion) Test `TearDown` now `remove_node(node_->get_node_base_interface())`
+  before `node_.reset()`, so the executor never holds the lifecycle node while it is
+  being destroyed (no-op if a path left it un-added). — `test/test_control_server_lifecycle.cpp:74-85`
+- [x] (suggestion) Test now ends by driving the shipped lifecycle teardown rather than
+  the `unique_ptr` destructor: after the re-bind cycle it `deactivate()`s (drains
+  in-flight heartbeats, asserts the heartbeat stops), then `shutdown()`s to the
+  `finalized` state — exercising the `on_deactivate`/`on_shutdown` reset paths
+  end-to-end. — `test/test_control_server_lifecycle.cpp:181-205`
+
+### Build & test
+- `colcon build --packages-up-to manda_coverage` — clean (only pre-existing
+  unused-parameter warnings in legacy code).
+- gtest: **all 10 cases pass** — `test_parameters` (9) + `test_control_server_lifecycle`
+  (1, now configure→activate→deactivate→re-activate→**deactivate→shutdown**).
+- **Zero new lint findings**: the test file is fully clean
+  (`ament_uncrustify`/`ament_cpplint`/`ament_copyright` all "No problems found" — the
+  wrapped drain-loop condition that uncrustify reflowed was collapsed back to a single
+  line in `33a1f55`); the `main.cpp`/`action_server.cpp` edits are comment-only and add
+  no divergences (`main.cpp`'s sole uncrustify item remains the pre-existing trailing
+  blank line). Pre-existing legacy MOOS lint debt (`ament_copyright`, `ament_cpplint`,
+  `ament_flake8`, `ament_uncrustify` on the unchanged MOOS-derived files) is untouched
+  and out of scope.
+
+### Next step
+Lifecycle: **Implementation** → **review-code** (re-review the fixes). No push / PR
+(host publishes after local review). The re-review reads the diff cold and confirms
+the four suggestions are genuinely resolved.
