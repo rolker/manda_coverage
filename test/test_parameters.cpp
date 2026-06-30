@@ -147,3 +147,12 @@ TEST(RecordSwathThreshold, DefaultThresholdReturnsRealWidth)
   RecordSwath record = makeRecordWithSwath(10.0);
   EXPECT_DOUBLE_EQ(record.SwathWidth(BoatSide::Stbd, 0), 10.0);
 }
+
+TEST(RecordSwathThreshold, AtThresholdReturnsRealWidth)
+{
+  // Boundary: the threshold is a strict `<`, so a width exactly equal to
+  // min_allowable_swath is still valid coverage and returns the real width.
+  RecordSwath record = makeRecordWithSwath(10.0);
+  record.SetMinAllowableSwath(10.0);
+  EXPECT_DOUBLE_EQ(record.SwathWidth(BoatSide::Stbd, 0), 10.0);
+}
