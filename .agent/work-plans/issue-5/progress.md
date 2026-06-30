@@ -58,3 +58,15 @@ dependency is satisfied and work can begin immediately.
 - [ ] Plan must document the design decision: setter vs re-read per cycle for `RecordSwath.SetInterval`.
 - [ ] Ensure validation returns populated `SetParametersResult.reason` strings (required for Phase 3 marine_control safety gating), not silent accepts/rejects.
 - [ ] Tests must assert live PathPlan/RecordSwath state update — not just cached member — after an in-range set.
+
+## Plan Authored
+**Status**: complete
+**When**: 2026-06-30 18:00 +00:00
+**By**: Claude Code Agent (Claude Sonnet)
+
+**Plan**: `.agent/work-plans/issue-5/plan.md` at `3e84ec9`
+**Branch**: feature/issue-5 at `3e84ec9`
+**Phases**: single
+
+### Open questions
+- [ ] No open questions — plan is review-plan-ready.
