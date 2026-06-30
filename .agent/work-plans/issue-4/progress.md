@@ -68,3 +68,15 @@ work is self-contained; it does not depend on any other open issue.
 ### Actions
 - [ ] Verify no external callers of `PathPlan(...)` constructor are broken by the signature change.
 - [ ] Confirm out-of-range rejection test exercises ROS 2 node-level validation (not just descriptor field inspection).
+
+## Plan Authored
+**Status**: complete
+**When**: 2026-06-30 17:00 +00:00
+**By**: Claude Code Agent (Claude Sonnet)
+
+**Plan**: `.agent/work-plans/issue-4/plan.md` at `4ae669d`
+**Branch**: feature/issue-4 at `4ae669d`
+**Phases**: single
+
+### Open questions
+- [ ] No open questions — plan is review-plan-ready.
