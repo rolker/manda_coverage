@@ -124,6 +124,9 @@ TEST_F(SurveyPathParameterTest, InRangeSetUpdatesLiveState)
   ASSERT_DOUBLE_EQ(survey_path_->max_bend_angle(), 60.0);
   ASSERT_DOUBLE_EQ(survey_path_->swath_record_interval(), 10.0);
   ASSERT_DOUBLE_EQ(survey_path_->min_allowable_swath(), 0.0);
+  ASSERT_DOUBLE_EQ(survey_path_->waypoint_distance_threshold(), 4.0);
+  ASSERT_DOUBLE_EQ(survey_path_->lead_in_distance(), 15.0);
+  ASSERT_DOUBLE_EQ(survey_path_->lead_out_distance(), 5.0);
 
   auto set = [&](const std::string & name, double value)
     {
@@ -138,6 +141,17 @@ TEST_F(SurveyPathParameterTest, InRangeSetUpdatesLiveState)
 
   set("max_bend_angle", 45.0);
   EXPECT_DOUBLE_EQ(survey_path_->max_bend_angle(), 45.0);
+
+  // Distance members updated by the post-set callback. Asserting each via its
+  // own getter would catch a wrong-member copy-paste in the apply callback.
+  set("waypoint_distance_threshold", 7.5);
+  EXPECT_DOUBLE_EQ(survey_path_->waypoint_distance_threshold(), 7.5);
+
+  set("lead_in_distance", 20.0);
+  EXPECT_DOUBLE_EQ(survey_path_->lead_in_distance(), 20.0);
+
+  set("lead_out_distance", 8.0);
+  EXPECT_DOUBLE_EQ(survey_path_->lead_out_distance(), 8.0);
 
   // Live RecordSwath setters invoked by the post-set callback.
   set("swath_record_interval", 25.0);

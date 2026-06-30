@@ -59,6 +59,9 @@ public:
   double max_bend_angle() const { return m_max_bend_angle; }
   double swath_record_interval() const { return m_swath_record.IntervalDist(); }
   double min_allowable_swath() const { return m_swath_record.GetMinAllowableSwath(); }
+  double waypoint_distance_threshold() const { return waypoint_distance_threshold_; }
+  double lead_in_distance() const { return lead_in_distance_; }
+  double lead_out_distance() const { return lead_out_distance_; }
 
 private:
 
