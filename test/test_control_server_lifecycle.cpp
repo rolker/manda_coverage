@@ -152,4 +152,29 @@ TEST_F(ControlServerLifecycleTest, PublishesBoundKnobsThenStopsOnDeactivate)
   const bool got_new =
     spin_until([&] {return count_ > count_at_deactivate;}, 3s);
   EXPECT_FALSE(got_new) << "heartbeat continued after deactivate()";
+
+  // Re-activate: on_activate constructs a fresh ControlServer and re-binds the
+  // seven knobs. Its callback group is created with the rclcpp default
+  // automatically_add_to_executor_with_node=true, so the already-added node's new
+  // timer/subscription are collected on the next spin cycle and the heartbeat
+  // resumes. This exercises the deactivate->activate re-bind path that a single
+  // activate cannot. (Production runs on a SingleThreadedExecutor; this test
+  // matches that — see main.cpp.)
+  last_set_ = ControlSet{};
+  const int count_before_reactivate = count_;
+  ASSERT_EQ(node_->activate().label(), "active");
+  ASSERT_TRUE(spin_until([&] {return count_ > count_before_reactivate;}, 10s))
+    << "no ControlSet heartbeat received after re-activate()";
+
+  EXPECT_EQ(last_set_.device_name, "Manda Coverage");
+  ASSERT_EQ(last_set_.items.size(), 7u)
+    << "expected the seven bound coverage knobs after re-activate()";
+  std::set<std::string> got_reactivate;
+  for (const auto & item : last_set_.items) {
+    EXPECT_EQ(item.group, "Coverage")
+      << item.name << " not in the Coverage group after re-activate()";
+    got_reactivate.insert(item.name);
+  }
+  EXPECT_EQ(got_reactivate, expected)
+    << "bound control names do not match the seven knobs after re-activate()";
 }
