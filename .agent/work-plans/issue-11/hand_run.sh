@@ -34,8 +34,11 @@
 #     diff before/lines_rev.txt after/lines_rev.txt
 # The backport includes the RecordSwath guard, a decided behaviour change.
 # Before it, the turn check read an empty list for every record from the
-# second up to the first MinInterval() of each line (undefined behaviour; on
-# Jazzy it in practice reads a heading near 0) and, when the boat's heading and
+# second up to the first MinInterval() of each line (undefined behaviour; the
+# heading read is indeterminate, uninitialised padding in a list header: in
+# practice usually about 0, but it can be NaN, which gives no override, the
+# same as guarded, or a huge value, on which angle180 never returns and the
+# node hangs) and, with a heading of about 0, when the boat's heading and
 # the output side met the turn condition, dropped the line's first record. In
 # this polygon the condition is met only in the "fwd" order (counter-clockwise:
 # first line on Port at heading 60, the next on Stbd at heading -120, and so
