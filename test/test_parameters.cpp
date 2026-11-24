@@ -18,11 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-// Tests for the coverage-density tuning parameters declared by SurveyPath, and
-// the RecordSwath swath thresholding that backs the min_allowable_swath knob.
+// Tests for the coverage-density tuning parameters declared by SurveyPath, the
+// RecordSwath swath thresholding that backs the min_allowable_swath knob, and
+// RecordSwath's first minimum interval of a line.
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -37,6 +39,7 @@ using manda_coverage::BoatSide;
 using manda_coverage::NodeInterfaces;
 using manda_coverage::RecordSwath;
 using manda_coverage::SurveyPath;
+using manda_coverage::XYSegList;
 
 // ---------------------------------------------------------------------------
 // SurveyPath parameter declaration tests
@@ -232,4 +235,42 @@ TEST(RecordSwathThreshold, AtThresholdReturnsRealWidth)
   RecordSwath record = makeRecordWithSwath(10.0);
   record.SetMinAllowableSwath(10.0);
   EXPECT_DOUBLE_EQ(record.SwathWidth(BoatSide::Stbd, 0), 10.0);
+}
+
+// ---------------------------------------------------------------------------
+// RecordSwath::AddRecord() before the line's first minimum interval
+// ---------------------------------------------------------------------------
+
+// Every record from the second up to the line's first MinInterval() reaches
+// the turn check while m_min_record is still empty. Without the guard in
+// AddRecord() the check reads m_min_record.back() on the empty list, which is
+// undefined behaviour: GCC 15's unoptimised build aborts there (a libstdc++
+// assertion), and other builds read a heading of about 0 out of the list's own
+// header. With output side Port and a heading of 45 that bogus turn of 45
+// degrees exceeds the threshold, so the second record was pushed as the line's
+// first minimum and the first record was lost. With the guard, MinInterval()
+// keeps the first record, as its own comment intends.
+TEST(RecordSwathFirstInterval, KeepsFirstRecordOfLine)
+{
+  const double interval = 10.0;
+  const double width = 20.0;
+  const double heading = 45.0;
+  const double x0 = 100.0;
+  const double y0 = 200.0;
+  const double step = 1.0;  // records 1 m apart, well inside the interval
+  const double s = std::sqrt(0.5);  // sin(45) == cos(45)
+
+  RecordSwath record(interval);
+  record.SetOutputSide(BoatSide::Port);
+  // A straight line at heading 45 running past one interval (15 m).
+  for (int i = 0; i <= 15; ++i) {
+    record.AddRecord(width, width, x0 + i * step * s, y0 + i * step * s, heading, 10.0);
+  }
+
+  XYSegList outer = record.SwathOuterPts(BoatSide::Port);
+  ASSERT_GE(outer.size(), 1u);
+  // The port edge of the first record: heading 45 turned 90 degrees to port
+  // is heading 315, i.e. (-sin45, +cos45) in x (east), y (north).
+  EXPECT_NEAR(outer.get_vx(0), x0 - width * s, 1e-9);
+  EXPECT_NEAR(outer.get_vy(0), y0 + width * s, 1e-9);
 }
