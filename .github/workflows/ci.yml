@@ -1,0 +1,130 @@
+# CI for manda_coverage. The same file is carried on the rolling and jazzy
+# branches; pushes and pull requests to either run it.
+#
+# One job, on Jazzy. There is no Rolling job: this repository's only package
+# is a Nav2 lifecycle node (it needs nav2_util, and nav2_ros_common through it
+# on Rolling), navigation2 has no Rolling release, and by the owner's decision
+# of 2026-11-24 no CI job builds navigation2 from source. On Rolling the
+# package is built, tested and run by hand on a development machine with
+# navigation2 built from source, and the runs are recorded in the issue's
+# progress notes. The Jazzy job keeps the shared code building and passing its
+# tests there, for the jazzy branch and for backports to it.
+#
+# The job clones the two source-sibling repositories the package needs (they
+# are not in rosdep) at their jazzy branches: rolker/marine_control
+# (marine_control, marine_control_interfaces) and rolker/unh_marine_navigation
+# (marine_nav_interfaces, marine_nav_utilities). Nav2 comes from the released
+# Jazzy binaries (ros-jazzy-nav2-util, ros-jazzy-nav-2d-utils). rosdep is given
+# only the paths of the build's --packages-up-to closure, taken from colcon
+# list, with no -r: a key that does not resolve fails the job, and the six
+# Nav2 packages of unh_marine_navigation are neither installed for nor built.
+#
+# Linter tests (ctest label "linter": copyright, cppcheck, cpplint, flake8,
+# lint_cmake, pep257, uncrustify, xmllint) are excluded: the pre-existing code
+# fails them in bulk, and bringing it up to standard is a follow-up of its
+# own. The manifest is checked for well-formedness by ament_xmllint instead.
+
+name: CI
+
+on:
+  push:
+    branches: [rolling, jazzy]
+  pull_request:
+    branches: [rolling, jazzy]
+
+jobs:
+  jazzy:
+    name: build-and-test (jazzy)
+    # The container supplies the distro's OS; the host runner only runs it.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    container:
+      image: ros:jazzy-ros-core
+
+    steps:
+      - name: Update apt
+        run: apt-get update
+
+      - name: Install ros dev tools
+        run: DEBIAN_FRONTEND=noninteractive apt-get -y install ros-dev-tools git
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Init rosdep
+        run: |
+          if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then
+            rosdep init
+          fi
+
+      - name: Update rosdep
+        run: rosdep update
+
+      - name: Create workspace
+        run: mkdir -p ../ws/src && ln -s "$GITHUB_WORKSPACE" ../ws/src/manda_coverage
+
+      - name: Clone marine_control and unh_marine_navigation (source siblings, not in rosdep)
+        working-directory: ../ws/src
+        run: |
+          git clone --depth 1 -b jazzy https://github.com/rolker/marine_control.git
+          git clone --depth 1 -b jazzy https://github.com/rolker/unh_marine_navigation.git
+
+      - name: Install ROS dependencies (closure of manda_coverage, strict)
+        working-directory: ../ws
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths="$(colcon list --base-paths src --paths-only --packages-up-to manda_coverage)"
+          if [ -z "$paths" ]; then
+            echo "colcon list returned no package paths" >&2
+            exit 1
+          fi
+          echo "$paths"
+          # shellcheck disable=SC2086
+          DEBIAN_FRONTEND=noninteractive rosdep install --ignore-src -y --from-paths $paths
+
+      - name: Check package manifest (ament_xmllint)
+        run: >
+          bash -c 'source /opt/ros/jazzy/setup.bash &&
+          ament_xmllint package.xml'
+
+      - name: Build
+        working-directory: ../ws
+        run: >
+          bash -c 'source /opt/ros/jazzy/setup.bash &&
+          colcon build --packages-up-to manda_coverage
+          --cmake-args -DBUILD_TESTING=ON'
+
+      - name: Test
+        working-directory: ../ws
+        run: >
+          bash -c 'source /opt/ros/jazzy/setup.bash &&
+          source install/setup.bash &&
+          colcon test --packages-select manda_coverage
+          --event-handlers console_direct+
+          --return-code-on-test-failure
+          --ctest-args -LE linter'
+
+      # A gtest that is not built or not run leaves no result file, and
+      # colcon test-result does not notice a missing one.
+      - name: Check that both gtests ran
+        working-directory: ../ws
+        shell: bash
+        run: |
+          set -euo pipefail
+          for t in test_parameters test_control_server_lifecycle; do
+            f="build/manda_coverage/test_results/manda_coverage/$t.gtest.xml"
+            if [ ! -f "$f" ]; then
+              echo "missing $f" >&2
+              exit 1
+            fi
+            echo "found $f"
+          done
+
+      - name: Test results
+        working-directory: ../ws
+        run: >
+          bash -c 'source /opt/ros/jazzy/setup.bash &&
+          colcon test-result --verbose'
+        if: always()

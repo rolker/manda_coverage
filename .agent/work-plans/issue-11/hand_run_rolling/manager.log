@@ -1,0 +1,14 @@
+[INFO] [1795530279.118502397] [lifecycle_manager_coverage]: Creating
+[INFO] [1795530279.118692957] [lifecycle_manager_coverage]: [34m[1mCreating and initializing lifecycle publishers[0m[0m
+[INFO] [1795530279.119236279] [lifecycle_manager_coverage]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[INFO] [1795530279.224855274] [lifecycle_manager_coverage]: [34m[1mCreating and initializing lifecycle service servers[0m[0m
+[INFO] [1795530279.240877390] [lifecycle_manager_coverage]: [34m[1mStarting managed nodes bringup...[0m[0m
+[INFO] [1795530279.240908962] [lifecycle_manager_coverage]: [34m[1mConfiguring manda_coverage_action_server[0m[0m
+[INFO] [1795530279.262842499] [lifecycle_manager_coverage]: [34m[1mActivating manda_coverage_action_server[0m[0m
+[INFO] [1795530279.522792119] [lifecycle_manager_coverage]: Server manda_coverage_action_server connected with bond.
+[INFO] [1795530279.522859848] [lifecycle_manager_coverage]: [34m[1mManaged nodes are active[0m[0m
+[INFO] [1795530279.522877758] [lifecycle_manager_coverage]: [34m[1mCreating bond timer...[0m[0m
+[INFO] [1795530312.404123442] [rclcpp]: signal_handler(signum=2)
+[INFO] [1795530312.404208039] [lifecycle_manager_coverage]: Running Nav2 LifecycleManager rcl preshutdown (lifecycle_manager_coverage)
+[INFO] [1795530312.404250797] [lifecycle_manager_coverage]: [34m[1mTerminating bond timer...[0m[0m
+[INFO] [1795530312.415873982] [lifecycle_manager_coverage]: Destroying lifecycle_manager_coverage

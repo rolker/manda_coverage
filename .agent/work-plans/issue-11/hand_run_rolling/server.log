@@ -1,0 +1,58 @@
+[INFO] [1795530279.117995063] [manda_coverage_action_server]: 
+	manda_coverage_action_server lifecycle node launched. 
+	Waiting on external lifecycle transitions to activate
+	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[INFO] [1795530279.242913791] [manda_coverage_action_server]: Configuring MandaCoverageActionServer...
+[INFO] [1795530279.264890951] [manda_coverage_action_server]: Activating MandaCoverageActionServer...
+[INFO] [1795530279.266337343] [manda_coverage_action_server]: Creating bond (manda_coverage_action_server) to lifecycle manager.
+[INFO] [1795530282.826511738] [manda_coverage_action_server]: Goal received
+[INFO] [1795530282.826605213] [manda_coverage_action_server]: map frame: map
+[INFO] [1795530282.826676514] [manda_coverage_action_server]:   point: 0, 0
+[INFO] [1795530282.826873117] [manda_coverage_action_server]:   point: 173.205, 100
+[INFO] [1795530282.826917435] [manda_coverage_action_server]:   point: 123.205, 186.603
+[INFO] [1795530282.826931117] [manda_coverage_action_server]:   point: -50, 86.6025
+[INFO] [1795530282.827296987] [manda_coverage_action_server]: Polygon valid: no
+[INFO] [1795530282.827309983] [manda_coverage_action_server]: Port side
+[WARN] [1795530282.827319736] [manda_coverage_action_server]: Invalid polygon, trying to correct
+[INFO] [1795530282.828261495] [manda_coverage_action_server]: Goal received: polygon with 5 vertices
+[INFO] [1795530282.828287175] [manda_coverage_action_server]: Initial line
+[INFO] [1795530282.828305627] [manda_coverage_action_server]:     point: 0, 0
+[INFO] [1795530282.828326508] [manda_coverage_action_server]:     point: 173.205, 100
+[INFO] [1795530282.836157935] [manda_coverage_action_server]: End of line, transit -> survey
+[INFO] [1795530287.155747088] [manda_coverage_action_server]: End of line, survey -> transit
+[INFO] [1795530287.157226584] [manda_coverage_action_server]: Port to Starboard
+[INFO] [1795530287.275873618] [manda_coverage_action_server]: End of line, transit -> survey
+[INFO] [1795530291.775795691] [manda_coverage_action_server]: End of line, survey -> transit
+[INFO] [1795530291.777109002] [manda_coverage_action_server]: Starboard to Port
+[INFO] [1795530291.895984091] [manda_coverage_action_server]: End of line, transit -> survey
+[INFO] [1795530296.435819303] [manda_coverage_action_server]: End of line, survey -> transit
+[INFO] [1795530296.436531138] [manda_coverage_action_server]: Port to Starboard
+[INFO] [1795530297.250589505] [manda_coverage_action_server]: Goal received
+[INFO] [1795530297.250661887] [manda_coverage_action_server]: map frame: map
+[INFO] [1795530297.250697008] [manda_coverage_action_server]:   point: -50, 86.6025
+[INFO] [1795530297.250725074] [manda_coverage_action_server]:   point: 123.205, 186.603
+[INFO] [1795530297.250736090] [manda_coverage_action_server]:   point: 173.205, 100
+[INFO] [1795530297.250744520] [manda_coverage_action_server]:   point: 0, 0
+[INFO] [1795530297.250929837] [manda_coverage_action_server]: Polygon valid: yes
+[INFO] [1795530297.250950876] [manda_coverage_action_server]: Starboard side
+[INFO] [1795530297.251021909] [manda_coverage_action_server]: Goal received: polygon with 5 vertices
+[INFO] [1795530297.251034245] [manda_coverage_action_server]: Initial line
+[INFO] [1795530297.251045673] [manda_coverage_action_server]:     point: -50, 86.6025
+[INFO] [1795530297.251054564] [manda_coverage_action_server]:     point: 123.205, 186.603
+[INFO] [1795530297.260399223] [manda_coverage_action_server]: End of line, transit -> survey
+[INFO] [1795530301.580711931] [manda_coverage_action_server]: End of line, survey -> transit
+[INFO] [1795530301.582018128] [manda_coverage_action_server]: Starboard to Port
+[INFO] [1795530301.700743573] [manda_coverage_action_server]: End of line, transit -> survey
+[INFO] [1795530306.180713963] [manda_coverage_action_server]: End of line, survey -> transit
+[INFO] [1795530306.181765719] [manda_coverage_action_server]: Port to Starboard
+[INFO] [1795530306.300771491] [manda_coverage_action_server]: End of line, transit -> survey
+[INFO] [1795530310.740272053] [manda_coverage_action_server]: End of line, survey -> transit
+[INFO] [1795530310.741154403] [manda_coverage_action_server]: Starboard to Port
+[INFO] [1795530312.404022293] [rclcpp]: signal_handler(signum=2)
+[INFO] [1795530312.404125956] [manda_coverage_action_server]: Running Nav2 LifecycleNode rcl preshutdown (manda_coverage_action_server)
+[INFO] [1795530312.404197790] [manda_coverage_action_server]: Deactivating MandaCoverageActionServer...
+[INFO] [1795530312.404254399] [manda_coverage_action_server]: Destroying bond (manda_coverage_action_server) to lifecycle manager.
+[INFO] [1795530312.504594316] [manda_coverage_action_server]: Cleaning up MandaCoverageActionServer...
+[INFO] [1795530312.504672486] [manda_coverage_action_server]: Destroying bond (manda_coverage_action_server) to lifecycle manager.
+[INFO] [1795530312.506228616] [manda_coverage_action_server]: Destroying
+[WARN] [1795530312.506261020] [rclcpp_lifecycle]: LifecycleNode is not shut down: Node still in state(1) in destructor
