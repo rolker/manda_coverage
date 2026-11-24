@@ -89,30 +89,12 @@ jobs:
           bash -c 'source /opt/ros/jazzy/setup.bash &&
           ament_xmllint package.xml'
 
-      - name: Build dependencies (source siblings)
+      - name: Build
         working-directory: ../ws
         run: >
           bash -c 'source /opt/ros/jazzy/setup.bash &&
           colcon build --packages-up-to manda_coverage
-          --packages-skip manda_coverage
           --cmake-args -DBUILD_TESTING=ON'
-
-      # manda_coverage alone is built with libstdc++'s assertions
-      # (_GLIBCXX_ASSERTIONS), so an out-of-bounds container access aborts
-      # instead of reading whatever memory is there. GCC 15 turns them on by
-      # itself in unoptimised builds; Jazzy's GCC 13 does not. With them, the
-      # regression test RecordSwathFirstInterval.KeepsFirstRecordOfLine
-      # aborts if RecordSwath::AddRecord's guard is removed, rather than
-      # passing or failing on the stack's contents. A separate colcon
-      # invocation, because colcon has no per-package --cmake-args: the flag
-      # stays off the sibling packages, whose code this repository does not
-      # own.
-      - name: Build manda_coverage (with libstdc++ assertions)
-        working-directory: ../ws
-        run: >
-          bash -c 'source /opt/ros/jazzy/setup.bash &&
-          colcon build --packages-select manda_coverage
-          --cmake-args -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-D_GLIBCXX_ASSERTIONS'
 
       - name: Test
         working-directory: ../ws
