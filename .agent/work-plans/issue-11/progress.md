@@ -295,3 +295,58 @@ Sentence for the pull request: "Only the RecordSwath guard changes behaviour. It
 - The 7 code/CI commits touch no `.agent/` file; cherry-picked onto `origin/jazzy` in a scratch worktree, all apply cleanly (worktree removed). Jazzy `c7046550`: no `nav2_ros_common`, `nav2_util::LifecycleNode(name, ns, options)`, `nav2_util_core` exported via `ament_export_targets` since 1.3.0; geometry2 `jazzy` has `tf2/utils.hpp`; `ament_cmake_ros` `jazzy` has `ament_add_ros_isolated_gtest`. No consumer names `MandaCoverageActionServer` or the old base outside this package.
 - `./build.sh --parallel-workers 4 --packages-up-to manda_coverage`: `Summary: 1 package finished` (up to date). `./test.sh ... -LE linter`: `100% tests passed, 0 tests failed out of 2`; gtest XMLs fresh (test_parameters 10 tests, 0 failures). The local `colcon test-result` summary also counts stale linter XMLs from 09:23 (1,913 failures); not in CI.
 - Outside reviewers: Gemini and Codex completed (suggestions only, folded above or dropped as settled/noise); Claude adversarial: no must-fix, padding analysis agrees.
+
+## Implementation
+**Status**: complete
+**When**: 2026-11-24 09:54 -05:00
+**By**: Claude Code Agent (claude-opus-5-5)
+
+**Branch**: feature/issue-11 at `226744b`
+**Addressed**: Local Review (Pre-Push) at `b9030d9` (2026-11-24 09:46 -05:00)
+**Commits**: `54b40d4` (test comment; code), `226744b` (CI), `8ac58f7` (records: hand_run.sh), `0180bba` (records: boxes ticked), and this entry
+
+### Actions
+- [x] (must-fix) Validation statement corrected: the statement below supersedes the one in the `## Implementation` entry of 09:28 (left as written) — `.agent/work-plans/issue-11/progress.md:238`
+- [x] (suggestion) "a heading near 0" wording replaced with "indeterminate: usually about 0, but NaN or a huge value is possible" — `test/test_parameters.cpp:245-256` (`54b40d4`, ends "Backport to jazzy."), `.agent/work-plans/issue-11/hand_run.sh:36-41` (`8ac58f7`, records)
+- [x] (suggestion) CI builds manda_coverage alone with `-DCMAKE_CXX_FLAGS=-D_GLIBCXX_ASSERTIONS` — `.github/workflows/ci.yml` (`226744b`, ends "Backport to jazzy.")
+- [x] (suggestion) Short line never ends — `src/RecordSwath.cpp:57`, `src/SurveyPath.cpp:459` (deferred: planner behaviour beyond the port; cannot occur with the default lead-in and lead-out; for the follow-up issue the host drafts for the owner)
+
+No code, test or CI commit touches `.agent/`; the guard and the planner code are unchanged.
+
+### Validation statement (for the pull request; supersedes the 09:28 entry's)
+
+Only the RecordSwath guard changes behaviour. It removes an out-of-bounds read reached on every survey line, whose value came from uninitialised memory: usually about 0 (the old turn override then fired), but it could also be NaN (no effect) or a huge value that hangs the node in angle180, and GCC 15's unoptimised build aborts on it. The change shows only when the first line's heading and output side met the old turn condition (in the test rectangle, one of the two vertex orders; the other is unchanged). There the line after a recorded line can end differently near the start of the recorded line: by centimetres with the default 15 m lead-in, by up to about 1 m without lead-in. Because each line is planned from the one before, later lines can then differ by metres to tens of metres near the polygon's corners, and the survey can take one line more or fewer. With a constant swath the geometry is the same.
+
+The other commits are build fixes, declarations and CI. The lifecycle base-class differences between the distros, and what the hand run does and does not show, are as in the 09:28 entry.
+
+"The old behaviour" was not a definite thing to compare against: the unguarded read returned the high 4 bytes of uninitialised padding in `m_interval_swath`'s header, so its result depended on what memory held (code review's probe: fill 0x00 gives 0, 0xAB gives -2.5e-98, both fire; 0x40 gives 32.5, which fires on other headings; 0xFF gives NaN, never fires, the same as guarded; 0x5A or 0x7F gives a huge value on which `angle180` loops forever).
+
+The three measurements of the size of the change (all on a 200 x 100 m rectangle rotated 30 degrees, guarded against unguarded, GCC 15 at -O2; "fwd" is the vertex order in which the old override fires, "rev" the one in which it never does; "rev" was identical in every run):
+- **Plan review's** (09:01): two extra collinear vertices at the line end with a constant swath; with a varying swath (16 to 24 m) the last 40 m of the next line moved by up to about 5 m.
+- **Implementer's** (09:28, lead-in 15, lead-out 5, 1 m records, interval 10): constant swath identical; varying swath up to 0.45 m on line 2 over its last 25 m and up to 0.96 m on line 3; a ramp profile, same geometry with different vertex counts.
+- **Code review's** (09:46, a harness whose guarded output reproduces the hand run's `lines_fwd.txt` exactly): with the default 15 m lead-in, constant swath identical, varying swath 0.05 to 0.17 m over the next line's last 7 to 15 m, later lines up to 0.1 m, and in one profile line 3's lead-in segment moved 28.6 m and the unguarded run ended a line earlier; with no lead-in, constant swath 2 to 3 extra collinear vertices (same geometry), varying swath up to 0.94 m on the next line and up to 49 m on line 3, one line fewer; interval 20 m or 2 m records: 0.3 to 0.44 m on line 2, 1.1 to 1.7 m (or 18.7 m with a line-count change) after.
+
+Why they differ (the code review's explanation): the guard acts only over each line's first interval, and with the default 15 m lead-in that interval is recorded outside the polygon and mostly clipped away, so its effect is centimetres; the plan review's numbers match a run with no lead-in. The size then depends on the swath over that first interval (the implementer's harness used another swath parameterisation), and it compounds through later lines, since each line is planned from the one before, so small differences can become large near the corners.
+
+### Finding 3: the CI change and its checks
+
+Approach: the Build step is split into two colcon invocations, "Build dependencies (source siblings)" (`--packages-up-to manda_coverage --packages-skip manda_coverage --cmake-args -DBUILD_TESTING=ON`, as before) and "Build manda_coverage (with libstdc++ assertions)" (`--packages-select manda_coverage --cmake-args -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-D_GLIBCXX_ASSERTIONS`). Two invocations because colcon build has no per-package `--cmake-args` (only global `--cmake-args` or per-build-type `--ament-cmake-args`, which would reach the siblings too, all being ament_cmake); a comment in the workflow says why the flag is there and why it is kept off rolker/marine_control and rolker/unh_marine_navigation.
+
+Local checks (scratch copies of `HEAD` without `.agent/`, built against the package worktree's `env.sh`; tests run from the build folder with the build folder first on `LD_LIBRARY_PATH`, `ldd` confirming the scratch `libmanda_coverage.so`):
+- Guard removed, `-O2 -D_GLIBCXX_ASSERTIONS`: `test_parameters` aborts (rc 134) in `RecordSwathFirstInterval.KeepsFirstRecordOfLine`: `stl_list.h:1674: ... back() ... Assertion '!this->empty()' failed.` (`test_control_server_lifecycle` passes.)
+- Guarded, `-O2 -D_GLIBCXX_ASSERTIONS`: `test_parameters` 10 tests PASSED, `test_control_server_lifecycle` 1 test PASSED. `hand_run.sh` with this node (the server's `ldd` showing the scratch library; domain 187, empty before and after): both goals `success=True`, 3 lines each, PASS, `active [3]` after both; `lines_fwd.txt` and `lines_rev.txt` identical to `hand_run_rolling/`'s.
+- Guarded, CI's flags exactly (empty build type, `-D_GLIBCXX_ASSERTIONS`): builds; both gtests pass (10 and 1); the set of distinct compiler warnings is identical to a build of the same tree without the flag (32 distinct by file:line:column and message); no macro-redefinition warning. (At -O2, not CI's level, two extra `-Wmaybe-uninitialized` warnings inside Eigen appear; they come from optimisation, not the flag.)
+
+CI rehearsal on Rolling (the changed steps and those after them, each `run:` block taken from the workflow's YAML, `/opt/ros/jazzy/setup.bash` replaced by Rolling plus the underlay, `--parallel-workers 4` and `MAKEFLAGS=-j4` added, in a clean environment, against the siblings' `rolling` branches cloned from the local core checkouts): "Build dependencies" 4 packages finished, rc 0; "Build manda_coverage" 1 package finished, rc 0; `CMAKE_CXX_FLAGS` is `-D_GLIBCXX_ASSERTIONS` in manda_coverage's cache and empty in all four siblings'; "Test" `100% tests passed, 0 tests failed out of 2`; "Check that both gtests ran" found both XMLs; "Test results" `Summary: 13 tests, 0 errors, 0 failures, 0 skipped`. Not rehearsable here: as in the 09:28 entry (the Jazzy container, binaries, GCC 13, the siblings' `jazzy` branches). Under GCC 13 at -O0 the flag is what turns the assertions on; that the regression test then aborts without the guard there is inferred from the -O2 run here (GCC 13's `std::list::back()` carries the same `__glibcxx_requires_nonempty` check under `_GLIBCXX_ASSERTIONS`), not run.
+
+### Verification (package worktree)
+
+- `./build.sh --parallel-workers 4 --packages-up-to manda_coverage`: `Summary: 1 package finished [4.46s]`.
+- `./test.sh --parallel-workers 4 --packages-select manda_coverage --ctest-args -LE linter`: `100% tests passed, 0 tests failed out of 2`. Result files written 09:52: `test_parameters.gtest.xml` tests="10" failures="0" errors="0"; `test_control_server_lifecycle.gtest.xml` tests="1" failures="0" errors="0". (colcon's summary line, `1969 tests, 0 errors, 1913 failures`, counts the stale linter XMLs from 09:23, as the review noted.)
+- Cherry-pick trial: the nine code, test and CI commits (`40bcf63 7d13db9 a62600c 36ad67b ae86bda bebd711 f84bea2 54b40d4 226744b`) touch no `.agent/` file and apply cleanly, in order, onto `origin/jazzy` in a scratch worktree (removed).
+- No hook suites apply (no workspace script changed); the host's full pass is left to the host.
+
+### Left alone (additions to the 09:28 entry's list, at its top)
+
+- **A short line never ends** (`src/RecordSwath.cpp:57`, `src/SurveyPath.cpp:459`): a line whose recording is shorter than one `swath_record_interval` gets no minimum; `SaveLast()` and `ValidRecord()` then fail, `CreateNewPath()` does nothing, and the goal never ends. The guard widens the cases in which this can occur: with it, it can happen in both vertex orders; before, only in the order where the old override did not fire. It cannot happen with the default 15 m lead-in and 5 m lead-out (at least 16 m recorded). Planner behaviour beyond the port; for the follow-up issue the host drafts for the owner.
+- The rest of the list is as in the 09:28 entry.
