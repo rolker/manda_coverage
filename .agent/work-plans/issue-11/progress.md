@@ -350,3 +350,30 @@ CI rehearsal on Rolling (the changed steps and those after them, each `run:` blo
 
 - **A short line never ends** (`src/RecordSwath.cpp:57`, `src/SurveyPath.cpp:459`): a line whose recording is shorter than one `swath_record_interval` gets no minimum; `SaveLast()` and `ValidRecord()` then fail, `CreateNewPath()` does nothing, and the goal never ends. The guard widens the cases in which this can occur: with it, it can happen in both vertex orders; before, only in the order where the old override did not fire. It cannot happen with the default 15 m lead-in and 5 m lead-out (at least 16 m recorded). Planner behaviour beyond the port; for the follow-up issue the host drafts for the owner.
 - The rest of the list is as in the 09:28 entry.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-11-24 10:00 -05:00
+**By**: Claude Code Agent (claude-opus-5-5)
+**Dispatch**: resumed (agent a66242904640b0ea8, resume 1 of 3)
+**Verdict**: changes-requested
+
+**Branch**: feature/issue-11 at `dc78427`
+**Base**: origin/rolling
+**Depth**: Standard (reason: whole-diff tier as round 1; this round reviews round 1's findings and the fix diff `b9030d9..dc78427`)
+**Must-fix**: 1 | **Suggestions**: 0
+**Round**: 2 | **Ship**: recommended — round 2: 1 mechanical must-fix (prev 1), not rising — fix and ship rather than another full round
+
+### Findings
+- [ ] (must-fix) Round 1's suggestion 3 was wrong, and `226744b` does not do what it says. GCC 13's libstdc++ `std::list::back()` has no `__glibcxx_requires_nonempty()` (releases/gcc-13 `stl_list.h:1223-1228`; the check first appears in releases/gcc-14, `stl_list.h:1232`), so under Jazzy's GCC 13 `-D_GLIBCXX_ASSERTIONS` leaves the unguarded read unchecked. The workflow comment ("the regression test ... aborts if RecordSwath::AddRecord's guard is removed") and the Implementation entry ("GCC 13's `std::list::back()` carries the same `__glibcxx_requires_nonempty` check") are false; the fix pass's evidence came from GCC 15, which has the check anyway. Recommended: drop `226744b` (CI back to one build step) and correct the Implementation entry's sentence: on Jazzy, without the guard, the regression test's result depends on the padding the read hits (in practice it fails, as at -O2 and at -O0 with `_GLIBCXX_NO_ASSERTIONS` on GCC 15; NaN padding would let it pass, a huge value would hang it until ctest's timeout). Codex found the same independently — `.github/workflows/ci.yml:100-115`, `.agent/work-plans/issue-11/progress.md:340`
+
+### Round 1 findings
+- Must-fix (validation statement): done. The new `## Implementation` entry carries the sentence verbatim, names the three measurements by whose they are, gives the explanation, and says it supersedes the 09:28 statement. It says nothing beyond what round 1 established.
+- Suggestion 2 (indeterminate heading): done in `54b40d4` (`test/test_parameters.cpp:245-256`) and `8ac58f7` (`hand_run.sh:36-41`), with the three outcomes.
+- Suggestion 3 (`_GLIBCXX_ASSERTIONS` in CI): applied as `226744b`, but ineffective on GCC 13. See the must-fix. Otherwise the split reads correctly: `--packages-select` in the same workspace finds the first step's isolated install; `-DBUILD_TESTING=ON` is on both steps; the package uses `add_compile_options` and sets no `CMAKE_CXX_FLAGS`, and CMake adds `-fPIC` for SHARED itself, so nothing is replaced; `_GLIBCXX_ASSERTIONS` changes no layout (unlike `_GLIBCXX_DEBUG`), so passing messages (`std::vector`/`std::string`), `shared_ptr` and `std::function` across to rclcpp/Nav2 is safe.
+- Suggestion 4 (short line never ends): deferred by the host; settled.
+
+### Verified
+- releases/gcc-13 (branch head, covers 13.3/noble) and gcc-12 `std::list::back()`: no assertion; gcc-14 and gcc-15: `__glibcxx_requires_nonempty()`.
+- The nine code/test/CI commits (`40bcf63 7d13db9 a62600c 36ad67b ae86bda bebd711 f84bea2 54b40d4 226744b`) touch no `.agent/` file and cherry-pick cleanly in order onto `origin/jazzy` (scratch worktree, removed).
+- Outside reviewers on the fix diff: Codex completed (the same must-fix, plus a layout-wording nit, dropped); Gemini completed (suggestions only: siblings could build with `BUILD_TESTING=OFF`, and a check that the flag reaches the compiler; both moot if `226744b` is dropped).
