@@ -260,3 +260,38 @@ Only commit 5 changes behaviour: the guard removes undefined behaviour reached o
 - `coverage_probe.py` gives up when the action server has been gone for 10 s (added after the unguarded -O0 comparison left it waiting out its timeout).
 - `SurveyPath.cpp:510` in the checkpoint is now line 509.
 - The copyright count is 36, not 34: Rolling's ament_copyright also reports LICENSE and CONTRIBUTING.md.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-11-24 09:46 -05:00
+**By**: Claude Code Agent (claude-opus-5-5)
+**Verdict**: changes-requested
+
+**Branch**: feature/issue-11 at `b9030d9`
+**Base**: origin/rolling
+**Depth**: Standard (reason: mission-path behaviour change in the planner plus first CI workflow; 9 code files, about 230 lines outside records)
+**Must-fix**: 1 | **Suggestions**: 3
+**Round**: 1 | **Ship**: continue — round 1: 1 must-fix; first round always re-reviews after fixes
+
+### Findings
+- [ ] (must-fix) The validation statement gives the guard's effect as "0 m flat, up to about 0.5 m (1 m in the line after) ... up to about 5 m in the plan review's harness" and treats the old behaviour as definite; both are wrong. Replace with the measured statement below — `.agent/work-plans/issue-11/progress.md:238`
+- [ ] (suggestion) "on Jazzy it in practice reads a heading near 0" / "other builds read a heading of about 0": the value is 4 bytes of uninitialised padding in `m_interval_swath`'s header (high half of the double); say "indeterminate: in practice usually about 0, but NaN (no override, same as guarded) or a huge value (angle180 never returns, the node hangs) are possible" — `.agent/work-plans/issue-11/hand_run.sh:38`, `test/test_parameters.cpp:248`
+- [ ] (suggestion) The regression test's failure without the guard on Jazzy depends on stack contents (the same padding); add `-DCMAKE_CXX_FLAGS=-D_GLIBCXX_ASSERTIONS` to the CI build's cmake args so a restored unguarded read aborts under GCC 13 too (also raised by the adversarial reviewer and Codex) — `.github/workflows/ci.yml:97`
+- [ ] (suggestion) Add to the follow-up issue: a line whose recording is shorter than one `swath_record_interval` gets no minimum, `SaveLast()`/`ValidRecord()` fail and `CreateNewPath()` does nothing, so the goal never ends; with the guard this now holds in both vertex orders (before, only in the non-firing one). Unreachable with the default 15 m lead-in and 5 m lead-out (at least 16 m recorded) (Codex) — `src/RecordSwath.cpp:57`, `src/SurveyPath.cpp:459`
+
+### The guard's effect (measured for this review)
+
+Harness: `RecordSwath` + `PathPlan` from the branch, `SurveyPath`'s flow replayed (first line from the first two vertices, side from orientation, lead-in/out extension, 4 m waypoint threshold, `ResetLine()` after each `CreateNewPath()`), the boat driven as `coverage_probe.py` does; guarded against unguarded, both -O2 GCC 15. Its guarded output reproduces the hand run's `lines_fwd.txt` exactly (line 2: 20 vertices, line 3: 21). 200 x 100 m rectangle rotated 30 degrees; swath constant 20, 20 ± 4 sin(2πa/60), ramp 24→16, and a 2-D field (a = position along the first edge).
+- "rev": identical in every case (old override never fires).
+- "fwd", defaults (lead-in 15, 1 m records, interval 10): constant swath identical; varying swath: the next line moves by 0.05-0.17 m over its last 7-15 m (the end beside the recorded line's start); later lines compound: up to 0.1 m, and in one profile (20 − 4 sin) line 3's lead-in segment moved 28.6 m and the unguarded run ended the survey one line earlier.
+- "fwd", lead-in 0: constant swath gives 2-3 extra collinear vertices (same geometry); varying swath moves the next line up to 0.94 m over its last 36 m, and line 3 by up to 49 m, one line fewer. Interval 20 or 2 m records: 0.3-0.44 m on line 2, 1.1-1.7 m (or 18.7 m with a line count change) after.
+- Explanation of the two earlier numbers: with the default 15 m lead-in the first interval (where the guard acts) is recorded outside the polygon and mostly clipped away; the plan review's numbers (extra collinear vertices with a constant swath, metres with a varying swath) match a run with no lead-in. The implementer's harness used another swath parameterisation; the size depends on the swath over the first interval and then compounds chaotically through later lines.
+- Old behaviour is not definite: the unguarded read returns the high 4 bytes of the map header's uninitialised padding. Fill 0x00 → 0; 0xAB → -2.5e-98 (both fire); 0x40 → 32.5 (fires on other headings); 0xFF → NaN (never fires: same as guarded); 0x5A or 0x7F → a huge value and `angle180` loops forever (hang).
+
+Sentence for the pull request: "Only the RecordSwath guard changes behaviour. It removes an out-of-bounds read reached on every survey line, whose value came from uninitialised memory: usually about 0 (the old turn override then fired), but it could also be NaN (no effect) or a huge value that hangs the node in angle180, and GCC 15's unoptimised build aborts on it. The change shows only when the first line's heading and output side met the old turn condition (in the test rectangle, one of the two vertex orders; the other is unchanged). There the line after a recorded line can end differently near the start of the recorded line: by centimetres with the default 15 m lead-in, by up to about 1 m without lead-in. Because each line is planned from the one before, later lines can then differ by metres to tens of metres near the polygon's corners, and the survey can take one line more or fewer. With a constant swath the geometry is the same."
+
+### Verified
+- Regression test alone (static sources, no shared library), GCC 15: guarded passes at -O0 and -O2; unguarded -O2 fails at both assertions; -O0 aborts `stl_list.h:1674 ... Assertion '!this->empty()'`; -O0 `-D_GLIBCXX_NO_ASSERTIONS` fails both assertions.
+- The 7 code/CI commits touch no `.agent/` file; cherry-picked onto `origin/jazzy` in a scratch worktree, all apply cleanly (worktree removed). Jazzy `c7046550`: no `nav2_ros_common`, `nav2_util::LifecycleNode(name, ns, options)`, `nav2_util_core` exported via `ament_export_targets` since 1.3.0; geometry2 `jazzy` has `tf2/utils.hpp`; `ament_cmake_ros` `jazzy` has `ament_add_ros_isolated_gtest`. No consumer names `MandaCoverageActionServer` or the old base outside this package.
+- `./build.sh --parallel-workers 4 --packages-up-to manda_coverage`: `Summary: 1 package finished` (up to date). `./test.sh ... -LE linter`: `100% tests passed, 0 tests failed out of 2`; gtest XMLs fresh (test_parameters 10 tests, 0 failures). The local `colcon test-result` summary also counts stale linter XMLs from 09:23 (1,913 failures); not in CI.
+- Outside reviewers: Gemini and Codex completed (suggestions only, folded above or dropped as settled/noise); Claude adversarial: no must-fix, padding analysis agrees.
