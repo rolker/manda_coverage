@@ -377,3 +377,28 @@ CI rehearsal on Rolling (the changed steps and those after them, each `run:` blo
 - releases/gcc-13 (branch head, covers 13.3/noble) and gcc-12 `std::list::back()`: no assertion; gcc-14 and gcc-15: `__glibcxx_requires_nonempty()`.
 - The nine code/test/CI commits (`40bcf63 7d13db9 a62600c 36ad67b ae86bda bebd711 f84bea2 54b40d4 226744b`) touch no `.agent/` file and cherry-pick cleanly in order onto `origin/jazzy` (scratch worktree, removed).
 - Outside reviewers on the fix diff: Codex completed (the same must-fix, plus a layout-wording nit, dropped); Gemini completed (suggestions only: siblings could build with `BUILD_TESTING=OFF`, and a check that the flag reaches the compiler; both moot if `226744b` is dropped).
+
+## Implementation
+**Status**: complete
+**When**: 2026-11-24 10:03 -05:00
+**By**: Claude Code Agent (claude-sonnet-5-5)
+
+**Branch**: feature/issue-11 at `d4659ce`
+**Addressed**: Local Review (Pre-Push) at `dc78427` (2026-11-24 10:00 -05:00)
+**Commits**: `d4659ce`
+
+### Actions
+- [x] (must-fix) `226744b` does not do what it says; reverted in `d4659ce`, so CI is back to one build step — `.github/workflows/ci.yml:100-115`
+
+### Correction of the record
+This entry corrects the previous `## Implementation` entry (Finding 3, "CI rehearsal" paragraph), which is left unedited. Its sentence that GCC 13's `std::list::back()` carries the same `__glibcxx_requires_nonempty` check under `_GLIBCXX_ASSERTIONS` is wrong. GCC 13's `stl_list.h:1223-1228` has no emptiness check; `__glibcxx_requires_nonempty()` first appears in GCC 14. The earlier evidence came from GCC 15, which has the check anyway.
+
+What is true for the pull request: on Jazzy (GCC 13), with the RecordSwath guard removed, the regression test's result depends on the uninitialised padding the read hits. In practice it fails (as it does on GCC 15 at `-O2`, and at `-O0` with `_GLIBCXX_NO_ASSERTIONS`), but NaN padding would let it pass and a huge value would hang it until ctest's timeout. Only GCC 14 or later aborts on the read itself, and only in a build with assertions on (GCC 15 turns them on by default when unoptimised). CI on Jazzy therefore does not reliably catch a removed guard.
+
+### Checks
+- `git diff 226744b^ HEAD -- .github/workflows/ci.yml` prints nothing; `d4659ce` touches only that file (1 insertion, 19 deletions). It carries "Not backported: the backport leaves out 226744b and this revert."
+- The test comment added in `54b40d4` (`test/test_parameters.cpp`) and `hand_run.sh` say nothing that depends on the reverted flag: the comment names GCC 15's unoptimised build, which asserts by default, and `hand_run.sh` speaks of -O0/-O2 builds. No change made.
+- `./test.sh --parallel-workers 4 --packages-select manda_coverage --ctest-args -LE linter` (no rebuild; the revert touches only CI): `test_parameters.gtest.xml` tests="10" failures="0" errors="0"; `test_control_server_lifecycle.gtest.xml` tests="1" failures="0" errors="0" (both written 10:01). colcon's summary line counts the stale linter XMLs and is not used.
+
+### Option not taken (for the follow-up issue)
+A small test target with no ROS dependencies that compiles `RecordSwath.cpp` and `lib_geometry` with `-D_GLIBCXX_DEBUG` would catch a removed guard on GCC 13 as well: debug mode checks `back()` there, and a target that passes no containers to ROS libraries is safe with debug mode's different container layout. Beyond a port.
