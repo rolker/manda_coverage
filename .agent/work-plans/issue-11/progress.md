@@ -425,3 +425,13 @@ A small test target with no ROS dependencies that compiles `RecordSwath.cpp` and
 - Neither the `54b40d4` test comment nor `hand_run.sh` mentions `_GLIBCXX_ASSERTIONS` or GCC 13, so nothing in them depended on the reverted flag.
 - Backport trial: `40bcf63 7d13db9 a62600c 36ad67b ae86bda bebd711 f84bea2 54b40d4` cherry-pick cleanly in order onto `origin/jazzy`. The result is identical to `937c7d6` outside `.agent/`. The scratch worktree is removed.
 - Cross-model reviewers skipped (round-3 convergence check, per handoff).
+
+## Checkpoint
+**Status**: complete
+**When**: 2026-11-24 10:03 -05:00
+**By**: Claude Code Agent (claude-fable-5-2)
+**Decided-by**: host (the round 3 pre-push review approved with nothing open; Jazzy cannot be built on the development machine and this repository has never had CI, so the pushed branch's first run is the first Jazzy evidence)
+**After**: publish
+**Decision**: publish
+
+Read: the Local Review (Pre-Push) at `937c7d6`, round 3, verdict approved, ship recommended, no findings. Round 1's must-fix (the validation statement) and round 2's (a CI flag that does nothing on Jazzy's compiler, reverted in `d4659ce`) are closed; the "short line never ends" case is deferred to the follow-up issue. The pull request carries the measured statement of the guard's effect and says `Part of #11`. The eight commits for the backport are `40bcf63 7d13db9 a62600c 36ad67b ae86bda bebd711 f84bea2 54b40d4`; `226744b` and its revert `d4659ce` are left out.
