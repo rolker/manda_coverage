@@ -54,9 +54,12 @@ bool RecordSwath::AddRecord(double swath_stbd, double swath_port, double loc_x,
             m_acc_dist = 0;
             MinInterval();
         } 
-        else
+        else if (!m_min_record.empty())
         {
             //Override the min interval on turns to the outside
+            // (only once the line has a minimum: before its first
+            // MinInterval() m_min_record is empty and back() is undefined
+            // behaviour; MinInterval() then keeps the line's first record)
             double turn = angle180(angle180(heading) - angle180(m_min_record.back().heading));
             if ((turn > TURN_THRESHOLD && m_output_side == BoatSide::Port)
                     || (turn < -TURN_THRESHOLD && m_output_side == BoatSide::Stbd))
