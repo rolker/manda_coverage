@@ -82,3 +82,13 @@ With those edits applied in the probe, the package built and both gtests passed.
 - [ ] Use the `__has_include("nav2_ros_common/lifecycle_node.hpp")` switch of cause 13 (header and type alias) so the code builds on Jazzy, and gate the `nav2_ros_common` CMake and `package.xml` dependency the same way (Jazzy has no `nav2_ros_common` package).
 - [ ] Plan a hand check on Rolling beyond the unit tests: bring the action server up through its lifecycle transitions against the source-built Nav2 and send one `ComputeSonarCoveragePath` goal; no existing test exercises the planner or the action path, and the owner's #415 notes say no simulation has been run.
 - [ ] Check whether `unh_marine_autonomy`'s `multibeam_coverage_adapter.py` is a client of this action, and record the answer in the plan.
+
+## Checkpoint
+**Status**: complete
+**When**: 2026-11-24 08:41 -05:00
+**By**: Claude Code Agent (claude-fable-5-2)
+**Decided-by**: host (the issue review found the issue well scoped and clear enough to plan from; its findings are corrections and choices for the planner, and none changes what the work is for or its scope)
+**After**: issue-actions
+**Decision**: proceed
+
+Read: the Issue Review, status complete. For the planner: the issue's table is incomplete: `src/SurveyPath.cpp:24` includes `nav2_util/node_utils.hpp`, which is unused and no longer exists on Rolling, and the lifecycle-node include is also in `include/manda_coverage/action_server.h:6` and both test files; the `__has_include` switch of #415 cause 13 applies, with `nav2_ros_common` found and linked only where it exists. Cause 7 as first described does not apply here. Pass criterion: the two gtests on both distros; the `ament_lint_auto` tests fail in bulk on the tree as it stands (copyright, uncrustify, cpplint, flake8) and are not this port's: the plan says how CI treats them (excluded, as rolker/unh_marine_navigation's workflow does) and lists them for the follow-up issue. Dependencies that are declared but unused (`nav_2d_utils`) are left as they are. The package is on the mission path (the behaviour tree's sonar coverage action calls it) and no test exercises its planner or action: the plan includes one hand run on Rolling against the source-built Nav2 that brings the lifecycle node up and sends one `ComputeSonarCoveragePath` goal, recorded, and says what that does and does not show. The Jazzy CI job clones what the package needs (rolker/marine_control, rolker/unh_marine_navigation, `geodesy` if the closure needs it) and uses released Nav2 binaries; there is no Rolling job (owner, 2026-11-24: no CI job builds Nav2 source).
