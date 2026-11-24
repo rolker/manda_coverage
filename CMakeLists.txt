@@ -57,9 +57,9 @@ target_link_libraries(${PROJECT_NAME}
   ${visualization_msgs_TARGETS}
 )
 
-ament_target_dependencies(${PROJECT_NAME}
-  nav2_util
-  Eigen3
+target_link_libraries(${PROJECT_NAME}
+  nav2_util::nav2_util_core
+  Eigen3::Eigen
 )
 
 
@@ -139,8 +139,8 @@ if(BUILD_TESTING)
     rclcpp::rclcpp
     rclcpp_action::rclcpp_action
   )
-  ament_target_dependencies(test_control_server_lifecycle
-    nav2_util
+  target_link_libraries(test_control_server_lifecycle
+    nav2_util::nav2_util_core
   )
 endif()
 

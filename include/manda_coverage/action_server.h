@@ -3,7 +3,13 @@
 
 #include "marine_nav_interfaces/action/compute_sonar_coverage_path.hpp"
 #include "rclcpp/rclcpp.hpp"
+// Nav2's lifecycle node moved from nav2_util (Jazzy) to nav2_ros_common
+// (Rolling); the alias below names whichever one exists.
+#if __has_include("nav2_ros_common/lifecycle_node.hpp")
+#include "nav2_ros_common/lifecycle_node.hpp"
+#else
 #include "nav2_util/lifecycle_node.hpp"
+#endif
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "marine_control/control_server.hpp"
 #include "manda_coverage/SurveyPath.h"
@@ -11,7 +17,13 @@
 namespace manda_coverage
 { 
 
-class MandaCoverageActionServer : public nav2_util::LifecycleNode
+#if __has_include("nav2_ros_common/lifecycle_node.hpp")
+using Nav2LifecycleNode = nav2::LifecycleNode;
+#else
+using Nav2LifecycleNode = nav2_util::LifecycleNode;
+#endif
+
+class MandaCoverageActionServer : public Nav2LifecycleNode
 {
 public:
   using ComputeSonarCoveragePath = marine_nav_interfaces::action::ComputeSonarCoveragePath;
