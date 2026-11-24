@@ -435,3 +435,20 @@ A small test target with no ROS dependencies that compiles `RecordSwath.cpp` and
 **Decision**: publish
 
 Read: the Local Review (Pre-Push) at `937c7d6`, round 3, verdict approved, ship recommended, no findings. Round 1's must-fix (the validation statement) and round 2's (a CI flag that does nothing on Jazzy's compiler, reverted in `d4659ce`) are closed; the "short line never ends" case is deferred to the follow-up issue. The pull request carries the measured statement of the guard's effect and says `Part of #11`. The eight commits for the backport are `40bcf63 7d13db9 a62600c 36ad67b ae86bda bebd711 f84bea2 54b40d4`; `226744b` and its revert `d4659ce` are left out.
+
+## Integrated Review
+**Status**: complete
+**When**: 2026-11-24 10:06 -05:00
+**By**: Claude Code Agent (claude-opus-5-5)
+**Reviews-read**: none
+
+**PR**: #12 at `e1a57f1`
+**Sources**: 4 (Local Review (Pre-Push) @ `b9030d9`, @ `dc78427`, @ `937c7d6` (covers `e1a57f1` via bookkeeping); CI rollup @ `e1a57f1`)
+**Cross-source confirmations**: 0
+**CI**: all-pass
+
+### Findings
+
+No finding is open. `review_progress.sh sources` at `e1a57f1` returns no open local findings and no dropped entries. Round 1 (`b9030d9`): the must-fix and two suggestions are fixed; the short-line suggestion (a line recorded for less than one `swath_record_interval` never yields a next line, so the goal never ends) is deferred to the follow-up issue: it is planner behaviour beyond the port and cannot occur with the default lead-in and lead-out. Round 2 (`dc78427`): the must-fix is fixed (`226744b` reverted in `d4659ce`). Round 3 (`937c7d6`): approved with no findings. GitHub: no reviews, no inline comments and no conversation comments; no Copilot review and no review check-run on the head.
+
+CI, run 45421088124, job `build-and-test (jazzy)`, 2m17s (15:03:41Z to 15:06:01Z): this repository's first CI run and the first Jazzy build of these changes. Both clones of the `jazzy` branches succeeded. `rosdep install` (strict, closure of manda_coverage) reported "All required rosdeps installed successfully". `colcon build --packages-up-to manda_coverage` finished with "Summary: 5 packages finished [1min 1s]": marine_control_interfaces, marine_nav_interfaces, marine_nav_utilities, marine_control and manda_coverage (31.6s). So the `#else` branch of the lifecycle-node switch and the `nav2_util::nav2_util_core` link line build against Jazzy's released `nav2_util`. Results: `test_parameters` "[  PASSED  ] 10 tests."; `test_control_server_lifecycle` "[  PASSED  ] 1 test." (8.67 s); "[       OK ] RecordSwathFirstInterval.KeepsFirstRecordOfLine (0 ms)" under GCC 13; the result-file check found both XML files; `colcon test-result` "Summary: 13 tests, 0 errors, 0 failures, 0 skipped". The package has 44 warnings under GCC 13, the same kinds and counts as the local Rolling build of 09:09 (reorder 15, unused-parameter 18, unused-variable 4, sign-compare 4, catch-value 1, comment 1, unused-label 1). None is new in kind.
