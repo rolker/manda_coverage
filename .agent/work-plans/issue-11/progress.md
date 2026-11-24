@@ -163,3 +163,100 @@ The port steps (causes 1, 2, 4, 6, the unused include, the CI job) are right and
 **Decision**: proceed
 
 The plan review's verdict is needs-work, on five findings that each have a concrete correction; the one question in it that was the owner's has his answer, so the implementer applies the corrections and no second plan round is run. **The owner's decision on step 5** (the guard at `src/RecordSwath.cpp:60`), 2026-11-24, shown that the read of an empty list is reachable on every survey line, that GCC 15's unoptimised build aborts on it, and that the guard changes the next line near the start of the recorded line in about half of geometries (measured: two extra collinear points with a constant swath; up to about 5 m over the last 40 m with a varying swath): "Take the guard, both branches (Recommended)". So the guard goes in, in its own commit, and is backported; the pull request states it as a behaviour change on the mission path. Corrections, overriding the plan: (1) nowhere say the guarded result "matches today's Jazzy output": it removes undefined behaviour and keeps the line's first record, as `MinInterval()`'s own comment intends, and it changes planned lines where the old code's spurious override fired. (2) The regression test must fail without the guard on any build, not only on GCC 15 unoptimised: output side Port, a straight line at heading 45 with records 1 m apart past one interval, assert that the first `SwathOuterPts(Port)` point is the first record's outer point; the test says that the unguarded value comes from undefined behaviour; prove it by removing the guard in both an unoptimised and an optimised build. (3) Say precisely which records skip the turn override: every record from the second up to the first `MinInterval()` of each line. (4) The hand run uses the polygon in both vertex orders and records both; the Jazzy-side script says that the reversed order is expected to differ after the backport, and its judging criteria are described as a sanity check for a flat swath, not a check of the planner's adaptive behaviour. (5) The left-alone list names both callers of `marine_nav_utilities::adjustPathOrientations` and its consumer: this package calls it at `src/SurveyPath.cpp:510`, so the lines this node returns carry NaN orientations for a segment along the x axis; the fix belongs in rolker/unh_marine_navigation and is not made here. Host decisions: all undeclared dependencies are declared in the cause 11 commit; lint stays excluded in CI.
+
+## Implementation
+**Status**: complete
+**When**: 2026-11-24 09:28 -05:00
+**By**: Claude Code Agent (claude-opus-5-5)
+**Branch**: feature/issue-11 at `aba24ff`
+
+Seven code and CI commits in the plan's order, with the checkpoint's five corrections applied; none touches `.agent/`, each ends "Backport to jazzy.":
+
+1. `40bcf63` CMake: `target_link_libraries(... nav2_util::nav2_util_core Eigen3::Eigen)` and the test's `nav2_util::nav2_util_core` (#415 cause 1).
+2. `7d13db9` `tf2/utils.hpp` (cause 2).
+3. `a62600c` drop the unused `nav2_util/node_utils.hpp` include.
+4. `36ad67b` `__has_include` switch and alias `manda_coverage::Nav2LifecycleNode` in `action_server.h`; base class and initialiser use it; `main.cpp` comment says "Nav2's". `nav2_ros_common` named in neither CMake nor `package.xml` (causes 7/13).
+5. `ae86bda` the guard at `src/RecordSwath.cpp:60` (`else if (!m_min_record.empty())`) and `RecordSwathFirstInterval.KeepsFirstRecordOfLine` (owner's decision: "Take the guard, both branches").
+6. `bebd711` `package.xml`: `<depend>` geometry_msgs, libboost-dev, rcl_interfaces, tf2, tf2_geometry_msgs; `<exec_depend>` launch, launch_ros, lifecycle_msgs (cause 11). `rosdep resolve` OK for jazzy/noble and rolling/resolute; `ament_xmllint`: No problems found.
+7. `f84bea2` `.github/workflows/ci.yml`: one Jazzy job; its header says why there is no Rolling job.
+
+Records: `da44dad` `hand_run.sh`; `aba24ff` `coverage_probe.py` and `hand_run_rolling/` (the recorded run); this entry.
+
+### Verification on Rolling (package worktree; GCC 15.2, empty build type = -O0)
+
+- `./build.sh --parallel-workers 4 --packages-up-to manda_coverage` (clean): `Summary: 1 package finished [18.5s]`; 44 compiler warnings, the same 44 as after steps 1-4 alone (also a clean build) and as the plan's baseline; none new, no deprecations.
+- `./test.sh --parallel-workers 4 --packages-select manda_coverage --ctest-args -LE linter`: `100% tests passed, 0 tests failed out of 2`; `Summary: 13 tests, 0 errors, 0 failures, 0 skipped` (test_parameters 10/10 with the new test, test_control_server_lifecycle 1/1; the 13 count includes ctest's own records).
+- Each gtest binary run 20 times as separate processes (ROS_DOMAIN_ID 187): test_parameters 20/20, test_control_server_lifecycle 20/20.
+- Linters (not run in CI, recorded for the follow-up): copyright 36 failures of 38 (the 34 source files of the baseline plus LICENSE and CONTRIBUTING.md, which Rolling's ament_copyright also checks), uncrustify 34 of 35, cpplint 1,838 of 1,840, flake8 5 of 5, cppcheck skips all 35; lint_cmake, pep257, xmllint pass. No new failure: the new test lines are uncrustify- and cpplint-clean (`test_parameters.cpp`'s uncrustify diff is only in pre-existing lines 170-187).
+
+### The guard (commit 5): what it changes
+
+The unguarded code read `m_min_record.back()` on an empty list (undefined behaviour, in the code since 2016) for every record from the second up to the first `MinInterval()` of each survey line. GCC 15's unoptimised build aborts there, so on Rolling's default build every coverage goal killed the node; on other builds the read returned a heading near 0 and, when the heading and output side met the turn condition (heading above 20 with Port, below -20 with Stbd), the line's first record was dropped. The guard keeps the first record, as `MinInterval()`'s own comment intends, and so changes where the next line runs near the start of the recorded line in the geometries where the old override fired.
+
+Regression test without the guard (scratch copy, guard removed, the test's own library forced with `LD_LIBRARY_PATH`):
+- `-O0` (GCC 15): `RecordSwathFirstInterval.KeepsFirstRecordOfLine` aborts: `stl_list.h:1674: ... back() ... Assertion '!this->empty()' failed.`, exit 134.
+- `-O2`: the test fails its assertions at `test/test_parameters.cpp:274` and `:275` (first outer point x 86.564971 vs expected 85.857864, y 214.849242 vs 214.142136: the second record's outer point, 1 m on); 9 passed, 1 failed.
+- `-O0 -D_GLIBCXX_NO_ASSERTIONS` (unoptimised without libstdc++'s assertions, the nearest to Jazzy's GCC 13 here): the same failure at lines 274 and 275.
+- With the guard: passes at -O0 (and in all 20 repeats).
+
+Size of the change (scratch harness replaying `SurveyPath`'s flow on `RecordSwath` + `PathPlan`, compiled at -O2, guarded against unguarded; 200 x 100 m rectangle rotated 30 degrees, float32 vertices, 1 m records, lead-in 15 / lead-out 5, overlap 0.2, bend 60, interval 10; "fwd" = counter-clockwise, first line Port at heading 60, where the old override fires on every line; "rev" = reversed list, clockwise, where it never fires):
+
+| order | swath per side | result |
+|---|---|---|
+| fwd | constant 20 m | identical lines (3 lines) |
+| fwd | 20 + 4 sin(2 pi a/60) (16-24 m) | line 2: same vertex count (18), up to 0.45 m apart over its last 25 m (the end nearest the start of the recorded line); line 3: up to 0.96 m, along its whole length (planned from the changed line 2) |
+| fwd | 20 - 4 sin(2 pi a/60) | line 2 identical; line 3 up to 0.11 m over its last 37 m; line 4 up to 0.26 m |
+| fwd | 24 falling to 16 over 240 m | same geometry (0.000 m), different vertex counts: line 2 11 vs 8, line 3 9 vs 22 (collinear points) |
+| rev | all four profiles | identical |
+
+These are smaller than the plan review's measurement (up to about 5 m over the last 40 m, and two extra collinear vertices with a constant swath); the size depends on the swath profile over the first interval and on the run's details. Both runs agree on the shape: one vertex order only, and only near the start of the recorded line, compounding into later lines.
+
+### Hand run on Rolling
+
+`ROS_DOMAIN_ID=187`, checked empty with `ros2 node list --no-daemon`. Command:
+`.agent/work-plans/issue-11/hand_run.sh /home/roland/project11/worktrees/issue-project11-rolker-manda_coverage-11/env.sh .agent/work-plans/issue-11/hand_run_rolling 187`
+which runs `manda_coverage_action_server`, then the underlay's source-built `lifecycle_manager --ros-args -r __node:=lifecycle_manager_coverage -p "node_names:=['manda_coverage_action_server']" -p autostart:=true`, then `coverage_probe.py fwd <out> 300` and `coverage_probe.py rev <out> 300` on the same node. Exit 0.
+
+- Lifecycle: `active [3]` after bring-up and after both goals (bond held throughout). `ros2 param list` shows the seven coverage parameters plus Rolling's `warn_on_missing_params` and `strict_param_loading`.
+- fwd: `success=True`, 3 lines; offsets 0, 36, 72 m, spacings 36.00, 36.00; coverage 92.0%; no NaN orientations; PASS.
+- rev: `success=True`, 3 lines (numbered 4-6: the node's line counter is not reset between goals); offsets 100, 64, 28 m, spacings 36.00, 36.00; coverage 92.0%; no NaN orientations; PASS.
+- The uncovered 8% is the far strip the planner leaves when the next offset line falls outside (the algorithm, as the plan says).
+- Verdict: PASS on the plan's criteria, which are a sanity check for a flat swath, not a check of the planner's adaptive behaviour.
+- Extra comparisons (scratch, same probe): an unguarded node built at -O2 gave lines identical to 1e-6 m in both orders (flat swath: the override fires in fwd but moves nothing, as in the harness); an unguarded node at the default -O0 aborted on the first line of the first goal (`Assertion '!this->empty()' failed`, `Aborted (core dumped)`), and the lifecycle manager reported "CRITICAL FAILURE: SERVER manda_coverage_action_server IS DOWN".
+- No node left running; the domain was empty afterwards.
+
+### CI rehearsal (Jazzy job, on this Rolling machine)
+
+Rehearsed: the workspace symlink; the two `git clone --depth 1 -b jazzy` lines; `colcon list --paths-only --packages-up-to manda_coverage` (manda_coverage, marine_control, marine_control_interfaces, marine_nav_interfaces, marine_nav_utilities); the strict `rosdep install --ignore-src -y` as `--simulate --rosdistro jazzy --os ubuntu:noble` in a clean environment (rc 0, every key resolves, including ros-jazzy-nav2-util and ros-jazzy-nav-2d-utils); `ament_xmllint package.xml` (No problems found); build, test (`-LE linter`), the result-file check and `colcon test-result` with the same commands on Rolling, against the siblings' `rolling` branches and the underlay's Nav2 (5 packages built; 2/2 tests; both `.gtest.xml` found; `Summary: 13 tests, 0 errors, 0 failures, 0 skipped`); the YAML parses. Not rehearsable: the `ros:jazzy-ros-core` container, `apt-get`, `rosdep init/update` there, the Jazzy binaries, GCC 13, the siblings' `jazzy` branches building, and the `#else` branch of the lifecycle switch.
+
+### Unverified on Jazzy
+
+Nothing here ran on Jazzy (Ubuntu 26.04, GCC 15, no Docker). The pull request's first CI run is the first Jazzy evidence, this repository's first CI run, and the first run of the new regression test under GCC 13. The owner's `hand_run.sh` on deadpool (before and after the backport) is the only Jazzy hand run.
+
+### Validation statement (for the pull request)
+
+Only commit 5 changes behaviour: the guard removes undefined behaviour reached on every survey line and keeps each line's first record; in polygons where the boat's heading and the output side met the old turn condition (here one of the two vertex orders) it moves the next line near the start of the recorded line, measured at 0 m with a flat swath and up to about 0.5 m (1 m in the line after) with a varying swath in a scratch harness, and up to about 5 m in the plan review's harness; on Rolling's default build it is the difference between the node aborting on the first line and completing the survey. The other commits are build fixes and declarations. The lifecycle base class differs between the distros only in what the plan review listed (bond heartbeat period 0.25 s on Rolling vs 0.1 s on Jazzy, each consistent with its own lifecycle manager; the new `warn_on_missing_params` and `strict_param_loading`, unused here; an `enable_lifecycle_services` override; member `create_*` returning Nav2 wrappers, which this package does not call). The hand run shows the node brought up by Rolling's lifecycle manager with a bond, serving two goals, and planning parallel lines 36 m apart for a fake boat with a flat swath in both vertex orders. It does not show the behaviour tree or `mission_manager` calling the action, Nav2 following the lines, real sonar or TF, or a real survey.
+
+### Left alone (for a follow-up issue; the owner's rule that a port makes no big changes)
+
+- Lint: copyright 36 (34 files plus LICENSE, CONTRIBUTING.md), uncrustify 34, cpplint 1,838, flake8 5 (`launch/manda_coverage_launch.py`); cppcheck skips everything on Rolling. Excluded in CI.
+- Compiler warnings (44 lines, 33 distinct): -Wunused-parameter `src/action_server.cpp:12,32,76,92,104,120,121,128`, `src/lib_geometry/XYPolygon.cpp:122`, `src/RecordSwath.cpp:84`; -Wreorder `PathPlan.h:244-252`, `RecordSwath.h:184-195`, `src/PathPlan.cpp:19`, `src/RecordSwath.cpp:23`; -Wsign-compare `src/SurveyPath.cpp:285,406,499,519`; -Wunused-variable `src/PathPlan.cpp:192,581,583`; -Wunused-label `src/PathPlan.cpp:319`; -Wcomment `src/PathPlan.cpp:486`; -Wcatch-value `src/PathPlan.cpp:809`.
+- `nav_2d_utils` declared but unused: `CMakeLists.txt:15`, `package.xml:23`.
+- `ament_export_dependencies` (`CMakeLists.txt:80`) lists only Eigen3, sensor_msgs, visualization_msgs: missing nav2_util, marine_nav_utilities, rclcpp, nav_msgs.
+- `eigen` only a `build_depend` (`package.xml:15`) though the installed `PathPlan.h` includes Eigen.
+- The installed `include/manda_coverage/action_server.h` (`CMakeLists.txt:66-69` installs `include/`) declares a class no library provides (`action_server.cpp` is in the executable and the test only).
+- `handle_cancel` (`src/action_server.cpp:127`) never calls `canceled()` on the goal handle.
+- `respawn=True` (`launch/manda_coverage_launch.py:18`) hides crashes.
+- Rolling's "LifecycleNode is not shut down: Node still in state(1) in destructor" warning on SIGINT (in `hand_run_rolling/server.log`).
+- The build type is empty (unoptimised) by default; nothing in the project sets it.
+- The line counter (`line_number` in feedback) carries on across goals on the same node (seen in the hand run: 4-6 for the second goal).
+- For rolker/unh_marine_navigation: `marine_nav_utilities::adjustPathOrientations` (`marine_nav_utilities/src/utilities.cpp:42`) gives NaN quaternions for a segment along the x axis. This package calls it at `src/SurveyPath.cpp:509` (510 before this branch removed an include), so the lines it returns can carry NaN orientations (none in this hand run: its lines are at 30 degrees). The other caller is `marine_nav_behavior_tree`'s `FixPathOrientations` (`src/plugins/action/fix_path_orientations.cpp:63`, `only_if_invalid`), which treats them as invalid and recomputes the same NaN; the consumer is `marine_nav_crabbing_path_follower/src/crabbing_path_follower.cpp:923`, `tf2::getYaw` of the plan pose's orientation. The fix belongs in marine_nav_utilities.
+
+### Differences from the plan and the checkpoint
+
+- The plan review's numbers for the size of the change were not reproduced: this harness gives 0 m with a constant swath (no extra vertices) and under 1 m with three varying profiles; the shape (one vertex order, near the start of the recorded line) matches. The review's harness and profile are not in the records, so the difference is not explained.
+- `hand_run.sh` names the order the guard can change ("fwd", counter-clockwise; "rev" is the reversed order and never fires here). With the probe's flat swath the Rolling comparison found no difference in either order, so the script says a difference is possible in fwd but may be nil, and a difference in rev is a bug.
+- `hand_run.sh` sends both goals to one node (realistic, and it shows a second goal working) rather than restarting it.
+- `coverage_probe.py` gives up when the action server has been gone for 10 s (added after the unguarded -O0 comparison left it waiting out its timeout).
+- `SurveyPath.cpp:510` in the checkpoint is now line 509.
+- The copyright count is 36, not 34: Rolling's ament_copyright also reports LICENSE and CONTRIBUTING.md.
