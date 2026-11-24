@@ -245,11 +245,15 @@ TEST(RecordSwathThreshold, AtThresholdReturnsRealWidth)
 // the turn check while m_min_record is still empty. Without the guard in
 // AddRecord() the check reads m_min_record.back() on the empty list, which is
 // undefined behaviour: GCC 15's unoptimised build aborts there (a libstdc++
-// assertion), and other builds read a heading of about 0 out of the list's own
-// header. With output side Port and a heading of 45 that bogus turn of 45
-// degrees exceeds the threshold, so the second record was pushed as the line's
-// first minimum and the first record was lost. With the guard, MinInterval()
-// keeps the first record, as its own comment intends.
+// assertion). Other builds read the list's own header as a record, whose
+// heading is indeterminate (uninitialised padding in the header of the
+// following member, m_interval_swath): in practice usually about 0, but it can
+// be NaN (no override, the same as guarded) or a huge value (angle180 never
+// returns and the node hangs). With a heading of about 0, output side Port and
+// a heading of 45, that bogus turn of 45 degrees exceeds the threshold, so the
+// second record was pushed as the line's first minimum and the first record
+// was lost. With the guard, MinInterval() keeps the first record, as its own
+// comment intends.
 TEST(RecordSwathFirstInterval, KeepsFirstRecordOfLine)
 {
   const double interval = 10.0;
