@@ -4,7 +4,7 @@ namespace manda_coverage
 {
 
   MandaCoverageActionServer::MandaCoverageActionServer(const rclcpp::NodeOptions & options)
- : nav2_util::LifecycleNode("manda_coverage_action_server", "", options)
+ : Nav2LifecycleNode("manda_coverage_action_server", "", options)
 {
 
 }
