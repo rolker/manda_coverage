@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
   // timer/sub-teardown-vs-heartbeat race cannot occur. (SurveyPath's m_param_mutex
   // is retained defensively; see SurveyPath.h.)
   //
-  // This does NOT fully eliminate the teardown race: nav2_util's LifecycleNode
+  // This does NOT fully eliminate the teardown race: Nav2's LifecycleNode
   // registers an rcl pre-shutdown callback that drives deactivate()/cleanup() ->
   // control_server_.reset() on the signal-handler thread (not the executor
   // thread) during SIGINT, so a one-shot teardown-vs-heartbeat window remains on
