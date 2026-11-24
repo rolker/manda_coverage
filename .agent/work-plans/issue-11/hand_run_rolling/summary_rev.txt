@@ -1,0 +1,6 @@
+result: success=True; lines: 3
+line offsets across the first edge (m): 100.00, 64.00, 28.00
+spacings (m): 36.00, 36.00
+coverage of the polygon by the 40 m strips: 92.0% (18400 of 20000 1 m cells)
+NaN orientations in lines: none
+verdict: PASS (sanity check for a flat swath)
