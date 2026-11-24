@@ -21,7 +21,6 @@
 #include "marine_nav_utilities/utilities.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/utils.hpp"
-#include "nav2_util/node_utils.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 
 
